@@ -1,0 +1,581 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		F0000001111111110000001A /* Web3Wallet in Frameworks */ = {isa = PBXBuildFile; productRef = F0000003111111110000001A /* Web3Wallet */; };
+		F0000001111111110000000F /* web3swift in Frameworks */ = {isa = PBXBuildFile; productRef = F0000003111111110000000F /* web3swift */; };
+		F0000001AAAAAAAA00000001 /* macOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002AAAAAAAA00000001 /* macOSApp.swift */; };
+		F0000001AAAAAAAA00000002 /* MacMenuCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002AAAAAAAA00000002 /* MacMenuCommands.swift */; };
+		F0000001BBBBBBBB00000001 /* Account.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002BBBBBBBB00000001 /* Account.swift */; };
+		F0000001BBBBBBBB00000002 /* Collection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002BBBBBBBB00000002 /* Collection.swift */; };
+		F0000001BBBBBBBB00000003 /* Ethscription.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002BBBBBBBB00000003 /* Ethscription.swift */; };
+		F0000001BBBBBBBB00000004 /* Network.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002BBBBBBBB00000004 /* Network.swift */; };
+		F0000001BBBBBBBB00000005 /* Transaction.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002BBBBBBBB00000005 /* Transaction.swift */; };
+		F0000001BBBBBBBB00000006 /* Wallet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002BBBBBBBB00000006 /* Wallet.swift */; };
+		F0000001BBBBBBBB00000007 /* Token.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002BBBBBBBB00000007 /* Token.swift */; };
+		F0000001BBBBBBBB00000008 /* NFT.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002BBBBBBBB00000008 /* NFT.swift */; };
+		F0000001CCCCCCCC00000001 /* AppChainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002CCCCCCCC00000001 /* AppChainService.swift */; };
+		F0000001CCCCCCCC00000002 /* EthscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002CCCCCCCC00000002 /* EthscriptionService.swift */; };
+		F0000001CCCCCCCC00000003 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002CCCCCCCC00000003 /* KeychainService.swift */; };
+		F0000001CCCCCCCC00000004 /* NetworkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002CCCCCCCC00000004 /* NetworkManager.swift */; };
+		F0000001CCCCCCCC00000005 /* PriceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002CCCCCCCC00000005 /* PriceService.swift */; };
+		F0000001CCCCCCCC00000006 /* Web3Service.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002CCCCCCCC00000006 /* Web3Service.swift */; };
+		F0000001CCCCCCCC00000007 /* NameService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002CCCCCCCC00000007 /* NameService.swift */; };
+		F0000001CCCCCCCC00000008 /* TokenService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002CCCCCCCC00000008 /* TokenService.swift */; };
+		F0000001CCCCCCCC00000009 /* NFTService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002CCCCCCCC00000009 /* NFTService.swift */; };
+		F0000001CCCCCCCC0000000A /* WalletConnectService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002CCCCCCCC0000000A /* WalletConnectService.swift */; };
+		F0000001DDDDDDDD00000001 /* ABIEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002DDDDDDDD00000001 /* ABIEncoder.swift */; };
+		F0000001DDDDDDDD00000002 /* DataURIEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002DDDDDDDD00000002 /* DataURIEncoder.swift */; };
+		F0000001DDDDDDDD00000003 /* HexUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002DDDDDDDD00000003 /* HexUtils.swift */; };
+		F0000001EEEEEEEE00000001 /* AccountsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002EEEEEEEE00000001 /* AccountsViewModel.swift */; };
+		F0000001EEEEEEEE00000002 /* CollectionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002EEEEEEEE00000002 /* CollectionViewModel.swift */; };
+		F0000001EEEEEEEE00000003 /* CreateViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002EEEEEEEE00000003 /* CreateViewModel.swift */; };
+		F0000001EEEEEEEE00000004 /* SendViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002EEEEEEEE00000004 /* SendViewModel.swift */; };
+		F0000001EEEEEEEE00000005 /* WalletViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002EEEEEEEE00000005 /* WalletViewModel.swift */; };
+		F0000001FFFFFFFF00000001 /* AccountSwitcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002FFFFFFFF00000001 /* AccountSwitcher.swift */; };
+		F0000001FFFFFFFF00000002 /* CreateEthscriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002FFFFFFFF00000002 /* CreateEthscriptionView.swift */; };
+		F0000001FFFFFFFF00000003 /* EthscriptionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002FFFFFFFF00000003 /* EthscriptionDetailView.swift */; };
+		F0000001FFFFFFFF00000004 /* EthscriptionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002FFFFFFFF00000004 /* EthscriptionsView.swift */; };
+		F0000001FFFFFFFF00000005 /* NetworkSwitcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002FFFFFFFF00000005 /* NetworkSwitcher.swift */; };
+		F0000001FFFFFFFF00000006 /* ReceiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002FFFFFFFF00000006 /* ReceiveView.swift */; };
+		F0000001FFFFFFFF00000007 /* SendView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002FFFFFFFF00000007 /* SendView.swift */; };
+		F0000001FFFFFFFF00000008 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002FFFFFFFF00000008 /* SettingsView.swift */; };
+		F0000001FFFFFFFF00000009 /* WalletView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002FFFFFFFF00000009 /* WalletView.swift */; };
+		F0000001FFFFFFFF0000000A /* TokensView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002FFFFFFFF0000000A /* TokensView.swift */; };
+		F0000001FFFFFFFF0000000B /* NFTsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002FFFFFFFF0000000B /* NFTsView.swift */; };
+		F0000001FFFFFFFF0000000C /* WalletConnectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002FFFFFFFF0000000C /* WalletConnectView.swift */; };
+		F0000001BROWSER0000000001 /* BrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002BROWSER0000000001 /* BrowserView.swift */; };
+		F0000001BROWSER0000000002 /* BrowserSignSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000002BROWSER0000000002 /* BrowserSignSheet.swift */; };
+		F0000001BROWSER0000000003 /* Web3Provider.js in Resources */ = {isa = PBXBuildFile; fileRef = F0000002BROWSER0000000003 /* Web3Provider.js */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		F0000002AAAAAAAA00000000 /* EthWallet.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = EthWallet.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F0000002AAAAAAAA00000001 /* macOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = macOSApp.swift; sourceTree = "<group>"; };
+		F0000002AAAAAAAA00000002 /* MacMenuCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacMenuCommands.swift; sourceTree = "<group>"; };
+		F0000002AAAAAAAA00000099 /* EthWallet.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = EthWallet.entitlements; sourceTree = "<group>"; };
+		F0000002BBBBBBBB00000001 /* Account.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Account.swift; sourceTree = "<group>"; };
+		F0000002BBBBBBBB00000002 /* Collection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Collection.swift; sourceTree = "<group>"; };
+		F0000002BBBBBBBB00000003 /* Ethscription.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Ethscription.swift; sourceTree = "<group>"; };
+		F0000002BBBBBBBB00000004 /* Network.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Network.swift; sourceTree = "<group>"; };
+		F0000002BBBBBBBB00000005 /* Transaction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Transaction.swift; sourceTree = "<group>"; };
+		F0000002BBBBBBBB00000006 /* Wallet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Wallet.swift; sourceTree = "<group>"; };
+		F0000002BBBBBBBB00000007 /* Token.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Token.swift; sourceTree = "<group>"; };
+		F0000002BBBBBBBB00000008 /* NFT.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NFT.swift; sourceTree = "<group>"; };
+		F0000002CCCCCCCC00000001 /* AppChainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppChainService.swift; sourceTree = "<group>"; };
+		F0000002CCCCCCCC00000002 /* EthscriptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EthscriptionService.swift; sourceTree = "<group>"; };
+		F0000002CCCCCCCC00000003 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
+		F0000002CCCCCCCC00000004 /* NetworkManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkManager.swift; sourceTree = "<group>"; };
+		F0000002CCCCCCCC00000005 /* PriceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceService.swift; sourceTree = "<group>"; };
+		F0000002CCCCCCCC00000006 /* Web3Service.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Web3Service.swift; sourceTree = "<group>"; };
+		F0000002CCCCCCCC00000007 /* NameService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NameService.swift; sourceTree = "<group>"; };
+		F0000002CCCCCCCC00000008 /* TokenService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenService.swift; sourceTree = "<group>"; };
+		F0000002CCCCCCCC00000009 /* NFTService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NFTService.swift; sourceTree = "<group>"; };
+		F0000002CCCCCCCC0000000A /* WalletConnectService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletConnectService.swift; sourceTree = "<group>"; };
+		F0000002DDDDDDDD00000001 /* ABIEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ABIEncoder.swift; sourceTree = "<group>"; };
+		F0000002DDDDDDDD00000002 /* DataURIEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataURIEncoder.swift; sourceTree = "<group>"; };
+		F0000002DDDDDDDD00000003 /* HexUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HexUtils.swift; sourceTree = "<group>"; };
+		F0000002EEEEEEEE00000001 /* AccountsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountsViewModel.swift; sourceTree = "<group>"; };
+		F0000002EEEEEEEE00000002 /* CollectionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionViewModel.swift; sourceTree = "<group>"; };
+		F0000002EEEEEEEE00000003 /* CreateViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateViewModel.swift; sourceTree = "<group>"; };
+		F0000002EEEEEEEE00000004 /* SendViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SendViewModel.swift; sourceTree = "<group>"; };
+		F0000002EEEEEEEE00000005 /* WalletViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletViewModel.swift; sourceTree = "<group>"; };
+		F0000002FFFFFFFF00000001 /* AccountSwitcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSwitcher.swift; sourceTree = "<group>"; };
+		F0000002FFFFFFFF00000002 /* CreateEthscriptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateEthscriptionView.swift; sourceTree = "<group>"; };
+		F0000002FFFFFFFF00000003 /* EthscriptionDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EthscriptionDetailView.swift; sourceTree = "<group>"; };
+		F0000002FFFFFFFF00000004 /* EthscriptionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EthscriptionsView.swift; sourceTree = "<group>"; };
+		F0000002FFFFFFFF00000005 /* NetworkSwitcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkSwitcher.swift; sourceTree = "<group>"; };
+		F0000002FFFFFFFF00000006 /* ReceiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiveView.swift; sourceTree = "<group>"; };
+		F0000002FFFFFFFF00000007 /* SendView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SendView.swift; sourceTree = "<group>"; };
+		F0000002FFFFFFFF00000008 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		F0000002FFFFFFFF00000009 /* WalletView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletView.swift; sourceTree = "<group>"; };
+		F0000002FFFFFFFF0000000A /* TokensView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokensView.swift; sourceTree = "<group>"; };
+		F0000002FFFFFFFF0000000B /* NFTsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NFTsView.swift; sourceTree = "<group>"; };
+		F0000002FFFFFFFF0000000C /* WalletConnectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletConnectView.swift; sourceTree = "<group>"; };
+		F0000002BROWSER0000000001 /* BrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserView.swift; sourceTree = "<group>"; };
+		F0000002BROWSER0000000002 /* BrowserSignSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserSignSheet.swift; sourceTree = "<group>"; };
+		F0000002BROWSER0000000003 /* Web3Provider.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = Web3Provider.js; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		F000000400000000FFFFFFFF /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F0000001111111110000001A /* Web3Wallet in Frameworks */,
+				F0000001111111110000000F /* web3swift in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		F0000005000000000000MACOS /* macOS */ = {
+			isa = PBXGroup;
+			children = (
+				F0000002AAAAAAAA00000001 /* macOSApp.swift */,
+				F0000002AAAAAAAA00000002 /* MacMenuCommands.swift */,
+				F0000002AAAAAAAA00000099 /* EthWallet.entitlements */,
+			);
+			path = macOS;
+			sourceTree = "<group>";
+		};
+		F0000005000000000000MODLS /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				F0000002BBBBBBBB00000001 /* Account.swift */,
+				F0000002BBBBBBBB00000002 /* Collection.swift */,
+				F0000002BBBBBBBB00000003 /* Ethscription.swift */,
+				F0000002BBBBBBBB00000004 /* Network.swift */,
+				F0000002BBBBBBBB00000008 /* NFT.swift */,
+				F0000002BBBBBBBB00000007 /* Token.swift */,
+				F0000002BBBBBBBB00000005 /* Transaction.swift */,
+				F0000002BBBBBBBB00000006 /* Wallet.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		F0000005000000000000PRODS /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				F0000002AAAAAAAA00000000 /* EthWallet.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		F0000005000000000000ROOT = {
+			isa = PBXGroup;
+			children = (
+				F0000005000000000000MACOS /* macOS */,
+				F0000005000000000000SHARE /* Shared */,
+				F0000005000000000000PRODS /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		F0000005000000000000SERVS /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				F0000002CCCCCCCC00000001 /* AppChainService.swift */,
+				F0000002CCCCCCCC00000002 /* EthscriptionService.swift */,
+				F0000002CCCCCCCC00000003 /* KeychainService.swift */,
+				F0000002CCCCCCCC00000007 /* NameService.swift */,
+				F0000002CCCCCCCC00000004 /* NetworkManager.swift */,
+				F0000002CCCCCCCC00000009 /* NFTService.swift */,
+				F0000002CCCCCCCC00000005 /* PriceService.swift */,
+				F0000002CCCCCCCC00000008 /* TokenService.swift */,
+				F0000002CCCCCCCC0000000A /* WalletConnectService.swift */,
+				F0000002CCCCCCCC00000006 /* Web3Service.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		F0000005000000000000SHARE /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				F0000005000000000000BROWSR /* Browser */,
+				F0000005000000000000MODLS /* Models */,
+				F0000005000000000000SERVS /* Services */,
+				F0000005000000000000UTILS /* Utilities */,
+				F0000005000000000000VWMDL /* ViewModels */,
+				F0000005000000000000VIEWS /* Views */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		F0000005000000000000BROWSR /* Browser */ = {
+			isa = PBXGroup;
+			children = (
+				F0000002BROWSER0000000001 /* BrowserView.swift */,
+				F0000002BROWSER0000000002 /* BrowserSignSheet.swift */,
+				F0000002BROWSER0000000003 /* Web3Provider.js */,
+			);
+			path = Browser;
+			sourceTree = "<group>";
+		};
+		F0000005000000000000UTILS /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				F0000002DDDDDDDD00000001 /* ABIEncoder.swift */,
+				F0000002DDDDDDDD00000002 /* DataURIEncoder.swift */,
+				F0000002DDDDDDDD00000003 /* HexUtils.swift */,
+			);
+			path = Utilities;
+			sourceTree = "<group>";
+		};
+		F0000005000000000000VIEWS /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				F0000002FFFFFFFF00000001 /* AccountSwitcher.swift */,
+				F0000002FFFFFFFF00000002 /* CreateEthscriptionView.swift */,
+				F0000002FFFFFFFF00000003 /* EthscriptionDetailView.swift */,
+				F0000002FFFFFFFF00000004 /* EthscriptionsView.swift */,
+				F0000002FFFFFFFF00000005 /* NetworkSwitcher.swift */,
+				F0000002FFFFFFFF0000000B /* NFTsView.swift */,
+				F0000002FFFFFFFF00000006 /* ReceiveView.swift */,
+				F0000002FFFFFFFF00000007 /* SendView.swift */,
+				F0000002FFFFFFFF00000008 /* SettingsView.swift */,
+				F0000002FFFFFFFF0000000A /* TokensView.swift */,
+				F0000002FFFFFFFF0000000C /* WalletConnectView.swift */,
+				F0000002FFFFFFFF00000009 /* WalletView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		F0000005000000000000VWMDL /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				F0000002EEEEEEEE00000001 /* AccountsViewModel.swift */,
+				F0000002EEEEEEEE00000002 /* CollectionViewModel.swift */,
+				F0000002EEEEEEEE00000003 /* CreateViewModel.swift */,
+				F0000002EEEEEEEE00000004 /* SendViewModel.swift */,
+				F0000002EEEEEEEE00000005 /* WalletViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		F0000006000000000000TARG /* EthWallet */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F0000008000000000000CFGL /* Build configuration list for PBXNativeTarget "EthWallet" */;
+			buildPhases = (
+				F0000006000000000000SRCS /* Sources */,
+				F000000400000000FFFFFFFF /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = EthWallet;
+			packageProductDependencies = (
+				F0000003111111110000001A /* Web3Wallet */,
+				F0000003111111110000000F /* web3swift */,
+			);
+			productName = EthWallet;
+			productReference = F0000002AAAAAAAA00000000 /* EthWallet.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		F0000007000000000000PROJ /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					F0000006000000000000TARG = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = F0000008000000000000CFGP /* Build configuration list for PBXProject "EthWallet" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = F0000005000000000000ROOT;
+			packageReferences = (
+				F0000003111111110000000D /* XCRemoteSwiftPackageReference "WalletConnectSwiftV2" */,
+				F0000003111111110000000E /* XCRemoteSwiftPackageReference "web3swift" */,
+			);
+			productRefGroup = F0000005000000000000PRODS /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				F0000006000000000000TARG /* EthWallet */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		F0000006000000000000SRCS /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F0000001AAAAAAAA00000001 /* macOSApp.swift in Sources */,
+				F0000001AAAAAAAA00000002 /* MacMenuCommands.swift in Sources */,
+				F0000001BBBBBBBB00000001 /* Account.swift in Sources */,
+				F0000001BBBBBBBB00000002 /* Collection.swift in Sources */,
+				F0000001BBBBBBBB00000003 /* Ethscription.swift in Sources */,
+				F0000001BBBBBBBB00000004 /* Network.swift in Sources */,
+				F0000001BBBBBBBB00000005 /* Transaction.swift in Sources */,
+				F0000001BBBBBBBB00000006 /* Wallet.swift in Sources */,
+				F0000001BBBBBBBB00000007 /* Token.swift in Sources */,
+				F0000001BBBBBBBB00000008 /* NFT.swift in Sources */,
+				F0000001CCCCCCCC00000001 /* AppChainService.swift in Sources */,
+				F0000001CCCCCCCC00000002 /* EthscriptionService.swift in Sources */,
+				F0000001CCCCCCCC00000003 /* KeychainService.swift in Sources */,
+				F0000001CCCCCCCC00000004 /* NetworkManager.swift in Sources */,
+				F0000001CCCCCCCC00000005 /* PriceService.swift in Sources */,
+				F0000001CCCCCCCC00000006 /* Web3Service.swift in Sources */,
+				F0000001CCCCCCCC00000007 /* NameService.swift in Sources */,
+				F0000001CCCCCCCC00000008 /* TokenService.swift in Sources */,
+				F0000001CCCCCCCC00000009 /* NFTService.swift in Sources */,
+				F0000001CCCCCCCC0000000A /* WalletConnectService.swift in Sources */,
+				F0000001DDDDDDDD00000001 /* ABIEncoder.swift in Sources */,
+				F0000001DDDDDDDD00000002 /* DataURIEncoder.swift in Sources */,
+				F0000001DDDDDDDD00000003 /* HexUtils.swift in Sources */,
+				F0000001EEEEEEEE00000001 /* AccountsViewModel.swift in Sources */,
+				F0000001EEEEEEEE00000002 /* CollectionViewModel.swift in Sources */,
+				F0000001EEEEEEEE00000003 /* CreateViewModel.swift in Sources */,
+				F0000001EEEEEEEE00000004 /* SendViewModel.swift in Sources */,
+				F0000001EEEEEEEE00000005 /* WalletViewModel.swift in Sources */,
+				F0000001FFFFFFFF00000001 /* AccountSwitcher.swift in Sources */,
+				F0000001FFFFFFFF00000002 /* CreateEthscriptionView.swift in Sources */,
+				F0000001FFFFFFFF00000003 /* EthscriptionDetailView.swift in Sources */,
+				F0000001FFFFFFFF00000004 /* EthscriptionsView.swift in Sources */,
+				F0000001FFFFFFFF00000005 /* NetworkSwitcher.swift in Sources */,
+				F0000001FFFFFFFF00000006 /* ReceiveView.swift in Sources */,
+				F0000001FFFFFFFF00000007 /* SendView.swift in Sources */,
+				F0000001FFFFFFFF00000008 /* SettingsView.swift in Sources */,
+				F0000001FFFFFFFF00000009 /* WalletView.swift in Sources */,
+				F0000001FFFFFFFF0000000A /* TokensView.swift in Sources */,
+				F0000001FFFFFFFF0000000B /* NFTsView.swift in Sources */,
+				F0000001FFFFFFFF0000000C /* WalletConnectView.swift in Sources */,
+				F0000001BROWSER0000000001 /* BrowserView.swift in Sources */,
+				F0000001BROWSER0000000002 /* BrowserSignSheet.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		F0000009000000000000DBGP /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		F0000009000000000000DBGT /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = macOS/EthWallet.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = G849HTGU43;
+				ENABLE_HARDENED_RUNTIME = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSMainStoryboardFile = "";
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jef.ethwallet.dev;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		F0000009000000000000RELP /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+		F0000009000000000000RELT /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = macOS/EthWallet.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = G849HTGU43;
+				ENABLE_HARDENED_RUNTIME = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSMainStoryboardFile = "";
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jef.ethwallet.dev;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		F0000008000000000000CFGL /* Build configuration list for PBXNativeTarget "EthWallet" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F0000009000000000000DBGT /* Debug */,
+				F0000009000000000000RELT /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F0000008000000000000CFGP /* Build configuration list for PBXProject "EthWallet" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F0000009000000000000DBGP /* Debug */,
+				F0000009000000000000RELP /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		F0000003111111110000000D /* XCRemoteSwiftPackageReference "WalletConnectSwiftV2" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/WalletConnect/WalletConnectSwiftV2.git";
+			requirement = {
+				kind = exactVersion;
+				version = 1.18.8;
+			};
+		};
+		F0000003111111110000000E /* XCRemoteSwiftPackageReference "web3swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/web3swift-team/web3swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.3.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		F0000003111111110000001A /* Web3Wallet */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F0000003111111110000000D /* XCRemoteSwiftPackageReference "WalletConnectSwiftV2" */;
+			productName = Web3Wallet;
+		};
+		F0000003111111110000000F /* web3swift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F0000003111111110000000E /* XCRemoteSwiftPackageReference "web3swift" */;
+			productName = web3swift;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = F0000007000000000000PROJ /* Project object */;
+}
