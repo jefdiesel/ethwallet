@@ -72,6 +72,17 @@
 		5DFDFED46CA44933B097193F /* SwapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 982F52DF05924ACD8AA69D4B /* SwapView.swift */; };
 		21CDA4C0E60D4C2BB776E054 /* ApprovalsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA3C54A8457B405A8597C26E /* ApprovalsViewModel.swift */; };
 		D4CEB01066A54B548DBF8047 /* SwapViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE98C23529284C4AB1C0BC71 /* SwapViewModel.swift */; };
+		ERC4337001MODELS00000001 /* UserOperation.swift in Sources */ = {isa = PBXBuildFile; fileRef = ERC4337002MODELS00000001 /* UserOperation.swift */; };
+		ERC4337001MODELS00000002 /* SmartAccount.swift in Sources */ = {isa = PBXBuildFile; fileRef = ERC4337002MODELS00000002 /* SmartAccount.swift */; };
+		ERC4337001MODELS00000003 /* UserOperationReceipt.swift in Sources */ = {isa = PBXBuildFile; fileRef = ERC4337002MODELS00000003 /* UserOperationReceipt.swift */; };
+		ERC4337001MODELS00000004 /* Paymaster.swift in Sources */ = {isa = PBXBuildFile; fileRef = ERC4337002MODELS00000004 /* Paymaster.swift */; };
+		ERC4337001SERVCS00000001 /* BundlerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ERC4337002SERVCS00000001 /* BundlerService.swift */; };
+		ERC4337001SERVCS00000002 /* SmartAccountService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ERC4337002SERVCS00000002 /* SmartAccountService.swift */; };
+		ERC4337001SERVCS00000003 /* PaymasterService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ERC4337002SERVCS00000003 /* PaymasterService.swift */; };
+		ERC4337001UTILS000000001 /* UserOperationEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = ERC4337002UTILS000000001 /* UserOperationEncoder.swift */; };
+		ERC4337001VWMDL000000001 /* SmartAccountViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ERC4337002VWMDL000000001 /* SmartAccountViewModel.swift */; };
+		ERC4337001VIEWS000000001 /* SmartAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ERC4337002VIEWS000000001 /* SmartAccountView.swift */; };
+		ERC4337001VIEWS000000002 /* AccountUpgradeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ERC4337002VIEWS000000002 /* AccountUpgradeView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -140,6 +151,17 @@
 		982F52DF05924ACD8AA69D4B /* SwapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwapView.swift; sourceTree = "<group>"; };
 		BA3C54A8457B405A8597C26E /* ApprovalsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalsViewModel.swift; sourceTree = "<group>"; };
 		EE98C23529284C4AB1C0BC71 /* SwapViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwapViewModel.swift; sourceTree = "<group>"; };
+		ERC4337002MODELS00000001 /* UserOperation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserOperation.swift; sourceTree = "<group>"; };
+		ERC4337002MODELS00000002 /* SmartAccount.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartAccount.swift; sourceTree = "<group>"; };
+		ERC4337002MODELS00000003 /* UserOperationReceipt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserOperationReceipt.swift; sourceTree = "<group>"; };
+		ERC4337002MODELS00000004 /* Paymaster.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Paymaster.swift; sourceTree = "<group>"; };
+		ERC4337002SERVCS00000001 /* BundlerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundlerService.swift; sourceTree = "<group>"; };
+		ERC4337002SERVCS00000002 /* SmartAccountService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartAccountService.swift; sourceTree = "<group>"; };
+		ERC4337002SERVCS00000003 /* PaymasterService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymasterService.swift; sourceTree = "<group>"; };
+		ERC4337002UTILS000000001 /* UserOperationEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserOperationEncoder.swift; sourceTree = "<group>"; };
+		ERC4337002VWMDL000000001 /* SmartAccountViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartAccountViewModel.swift; sourceTree = "<group>"; };
+		ERC4337002VIEWS000000001 /* SmartAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartAccountView.swift; sourceTree = "<group>"; };
+		ERC4337002VIEWS000000002 /* AccountUpgradeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountUpgradeView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -173,8 +195,12 @@
 				F0000002BBBBBBBB00000003 /* Ethscription.swift */,
 				F0000002BBBBBBBB00000004 /* Network.swift */,
 				F0000002BBBBBBBB00000008 /* NFT.swift */,
+				ERC4337002MODELS00000004 /* Paymaster.swift */,
+				ERC4337002MODELS00000002 /* SmartAccount.swift */,
 				F0000002BBBBBBBB00000007 /* Token.swift */,
 				F0000002BBBBBBBB00000005 /* Transaction.swift */,
+				ERC4337002MODELS00000001 /* UserOperation.swift */,
+				ERC4337002MODELS00000003 /* UserOperationReceipt.swift */,
 				F0000002BBBBBBBB00000006 /* Wallet.swift */,
 				AAD198FB75344081B11FD811 /* SimulationResult.swift */,
 				B37B418EC7914C31A4A4B9BD /* TokenApproval.swift */,
@@ -204,12 +230,15 @@
 			isa = PBXGroup;
 			children = (
 				F0000002CCCCCCCC00000001 /* AppChainService.swift */,
+				ERC4337002SERVCS00000001 /* BundlerService.swift */,
 				F0000002CCCCCCCC00000002 /* EthscriptionService.swift */,
 				F0000002CCCCCCCC00000003 /* KeychainService.swift */,
 				F0000002CCCCCCCC00000007 /* NameService.swift */,
 				F0000002CCCCCCCC00000004 /* NetworkManager.swift */,
 				F0000002CCCCCCCC00000009 /* NFTService.swift */,
+				ERC4337002SERVCS00000003 /* PaymasterService.swift */,
 				F0000002CCCCCCCC00000005 /* PriceService.swift */,
+				ERC4337002SERVCS00000002 /* SmartAccountService.swift */,
 				F0000002CCCCCCCC00000008 /* TokenService.swift */,
 				F0000002CCCCCCCC0000000A /* WalletConnectService.swift */,
 				F0000002CCCCCCCC00000006 /* Web3Service.swift */,
@@ -254,6 +283,7 @@
 				F0000002DDDDDDDD00000001 /* ABIEncoder.swift */,
 				F0000002DDDDDDDD00000002 /* DataURIEncoder.swift */,
 				F0000002DDDDDDDD00000003 /* HexUtils.swift */,
+				ERC4337002UTILS000000001 /* UserOperationEncoder.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -262,6 +292,7 @@
 			isa = PBXGroup;
 			children = (
 				F0000002FFFFFFFF00000001 /* AccountSwitcher.swift */,
+				ERC4337002VIEWS000000002 /* AccountUpgradeView.swift */,
 				F0000002FFFFFFFF00000002 /* CreateEthscriptionView.swift */,
 				F0000002FFFFFFFF00000003 /* EthscriptionDetailView.swift */,
 				F0000002FFFFFFFF00000004 /* EthscriptionsView.swift */,
@@ -270,6 +301,7 @@
 				F0000002FFFFFFFF00000006 /* ReceiveView.swift */,
 				F0000002FFFFFFFF00000007 /* SendView.swift */,
 				F0000002FFFFFFFF00000008 /* SettingsView.swift */,
+				ERC4337002VIEWS000000001 /* SmartAccountView.swift */,
 				F0000002FFFFFFFF0000000A /* TokensView.swift */,
 				F0000002FFFFFFFF0000000D /* TradingViewChart.swift */,
 				F0000002FFFFFFFF0000000E /* TokenDetailView.swift */,
@@ -299,6 +331,7 @@
 				F0000002EEEEEEEE00000002 /* CollectionViewModel.swift */,
 				F0000002EEEEEEEE00000003 /* CreateViewModel.swift */,
 				F0000002EEEEEEEE00000004 /* SendViewModel.swift */,
+				ERC4337002VWMDL000000001 /* SmartAccountViewModel.swift */,
 				F0000002EEEEEEEE00000005 /* WalletViewModel.swift */,
 				BA3C54A8457B405A8597C26E /* ApprovalsViewModel.swift */,
 				EE98C23529284C4AB1C0BC71 /* SwapViewModel.swift */,
@@ -433,6 +466,17 @@
 				5DFDFED46CA44933B097193F /* SwapView.swift in Sources */,
 				21CDA4C0E60D4C2BB776E054 /* ApprovalsViewModel.swift in Sources */,
 				D4CEB01066A54B548DBF8047 /* SwapViewModel.swift in Sources */,
+				ERC4337001MODELS00000001 /* UserOperation.swift in Sources */,
+				ERC4337001MODELS00000002 /* SmartAccount.swift in Sources */,
+				ERC4337001MODELS00000003 /* UserOperationReceipt.swift in Sources */,
+				ERC4337001MODELS00000004 /* Paymaster.swift in Sources */,
+				ERC4337001SERVCS00000001 /* BundlerService.swift in Sources */,
+				ERC4337001SERVCS00000002 /* SmartAccountService.swift in Sources */,
+				ERC4337001SERVCS00000003 /* PaymasterService.swift in Sources */,
+				ERC4337001UTILS000000001 /* UserOperationEncoder.swift in Sources */,
+				ERC4337001VWMDL000000001 /* SmartAccountViewModel.swift in Sources */,
+				ERC4337001VIEWS000000001 /* SmartAccountView.swift in Sources */,
+				ERC4337001VIEWS000000002 /* AccountUpgradeView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

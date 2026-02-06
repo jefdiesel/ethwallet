@@ -246,9 +246,9 @@ enum GridLayout: String, CaseIterable, Identifiable {
 
     var columns: Int {
         switch self {
-        case .small: return 6
-        case .medium: return 4
-        case .large: return 2
+        case .small: return 4
+        case .medium: return 2
+        case .large: return 1
         }
     }
 

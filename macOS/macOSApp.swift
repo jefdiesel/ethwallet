@@ -22,7 +22,7 @@ struct EthWalletApp: App {
                 .environmentObject(networkManager)
                 .environmentObject(priceService)
                 .environmentObject(wcService)
-                .frame(minWidth: 360, minHeight: 640)
+                .frame(width: 440, height: 700)
                 .preferredColorScheme(.dark)
                 .tint(Color(red: 0.765, green: 1.0, blue: 0.0)) // #c3ff00
                 .onAppear {
@@ -40,8 +40,7 @@ struct EthWalletApp: App {
                     }
                 }
         }
-        .windowStyle(.hiddenTitleBar)
-        .windowToolbarStyle(.unified(showsTitle: true))
+        .windowResizability(.contentSize)
         .commands {
             MacMenuCommands(walletViewModel: walletViewModel)
         }

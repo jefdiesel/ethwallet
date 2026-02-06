@@ -13,29 +13,30 @@ struct EthscriptionsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Toolbar
-            toolbar
-                .padding()
-
-            Divider()
-
-            // Content
-            if viewModel.isLoading {
-                loadingView
-            } else if let error = viewModel.error {
-                errorView(error)
-            } else if viewModel.ethscriptions.isEmpty {
-                emptyView
+            if let ethscription = selectedEthscription {
+                // Inline detail panel
+                ethscriptionDetailPanel(for: ethscription)
+            } else if showingCreate {
+                // Inline create panel
+                createPanel
             } else {
-                ethscriptionsGrid
+                // Normal grid view
+                toolbar
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+
+                Divider()
+
+                if viewModel.isLoading {
+                    loadingView
+                } else if let error = viewModel.error {
+                    errorView(error)
+                } else if viewModel.ethscriptions.isEmpty {
+                    emptyView
+                } else {
+                    ethscriptionsGrid
+                }
             }
-        }
-        .sheet(isPresented: $showingCreate) {
-            CreateEthscriptionView(account: account)
-        }
-        .sheet(item: $selectedEthscription) { ethscription in
-            EthscriptionDetailView(ethscription: ethscription)
-                .environmentObject(walletViewModel)
         }
         .onAppear {
             if let account = account {
@@ -62,62 +63,219 @@ struct EthscriptionsView: View {
 
     @ViewBuilder
     private var toolbar: some View {
-        HStack {
-            // Search
-            HStack {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
-                TextField("Search", text: $viewModel.searchQuery)
-                    .textFieldStyle(.plain)
-            }
-            .padding(8)
-            .background(Color.secondary.opacity(0.1))
-            .cornerRadius(8)
-            .frame(maxWidth: 200)
-
-            // Collection filter
-            if !viewModel.collections.isEmpty {
-                Picker("Collection", selection: $viewModel.filterCollection) {
-                    Text("All Collections").tag(String?.none)
-                    ForEach(viewModel.collections) { collection in
-                        Text(collection.name).tag(Optional(collection.id))
-                    }
-                }
-                .frame(maxWidth: 150)
-            }
-
+        HStack(spacing: 6) {
+            Text("Inscribed")
+                .font(.caption.weight(.semibold))
             Spacer()
-
-            // Sort order
-            Picker("Sort", selection: $viewModel.sortOrder) {
-                ForEach(SortOrder.allCases) { order in
-                    Text(order.rawValue).tag(order)
-                }
-            }
-            .frame(maxWidth: 100)
-
-            // Grid size
-            Picker("Size", selection: $gridLayout) {
+            Picker("", selection: $gridLayout) {
                 Image(systemName: "square.grid.3x3").tag(GridLayout.small)
                 Image(systemName: "square.grid.2x2").tag(GridLayout.medium)
-                Image(systemName: "rectangle.grid.1x2").tag(GridLayout.large)
             }
             .pickerStyle(.segmented)
-            .frame(maxWidth: 120)
-
-            // Create button
-            Button {
-                showingCreate = true
-            } label: {
-                Label("Create", systemImage: "plus")
+            .frame(width: 60)
+            .controlSize(.small)
+            Button { showingCreate = true } label: {
+                Image(systemName: "plus").font(.caption)
             }
-            .buttonStyle(.borderedProminent)
+            Button { Task { await viewModel.refresh() } } label: {
+                Image(systemName: "arrow.clockwise").font(.caption)
+            }
+        }
+    }
 
-            // Refresh button
-            Button {
-                Task { await viewModel.refresh() }
-            } label: {
-                Image(systemName: "arrow.clockwise")
+    // MARK: - Detail Panel (Inline)
+
+    @ViewBuilder
+    private func ethscriptionDetailPanel(for ethscription: Ethscription) -> some View {
+        VStack(spacing: 0) {
+            // Header with back button
+            HStack {
+                Button { withAnimation(.easeInOut(duration: 0.15)) { selectedEthscription = nil } } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+                Text(ethscription.shortId)
+                    .font(.caption.bold())
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+
+            Divider()
+
+            ScrollView {
+                VStack(spacing: 12) {
+                    // Content preview
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.secondary.opacity(0.1))
+
+                        if ethscription.isImage, let imageData = ethscription.imageData {
+                            #if os(macOS)
+                            if let nsImage = NSImage(data: imageData) {
+                                Image(nsImage: nsImage)
+                                    .resizable()
+                                    .interpolation(.none)
+                                    .aspectRatio(contentMode: .fit)
+                            }
+                            #else
+                            if let uiImage = UIImage(data: imageData) {
+                                Image(uiImage: uiImage)
+                                    .resizable()
+                                    .interpolation(.none)
+                                    .aspectRatio(contentMode: .fit)
+                            }
+                            #endif
+                        } else if ethscription.isText, let text = ethscription.textContent {
+                            Text(text)
+                                .font(.title2.monospaced())
+                                .foregroundColor(AppColors.accent)
+                                .multilineTextAlignment(.center)
+                                .padding()
+                        } else {
+                            Image(systemName: ethscription.isImage ? "photo" : "doc.text")
+                                .font(.largeTitle)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .aspectRatio(1, contentMode: .fit)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .padding(.horizontal, 10)
+
+                    // Name
+                    if let metadata = viewModel.metadata[ethscription.id], let name = metadata.name {
+                        Text(name)
+                            .font(.caption.bold())
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 10)
+                    }
+
+                    Divider()
+
+                    // Details
+                    VStack(spacing: 4) {
+                        detailRow("ID", ethscription.shortId)
+                        detailRow("Type", ethscription.mimeType)
+                        detailRow("Creator", String(ethscription.creator.prefix(8)) + "..." + String(ethscription.creator.suffix(6)))
+                        detailRow("Owner", String(ethscription.owner.prefix(8)) + "..." + String(ethscription.owner.suffix(6)))
+                    }
+                    .padding(.horizontal, 10)
+
+                    Divider()
+
+                    // Actions
+                    HStack(spacing: 8) {
+                        Button {
+                            // TODO: Transfer
+                        } label: {
+                            Label("Transfer", systemImage: "arrow.right")
+                                .font(.caption)
+                        }
+                        .buttonStyle(PrimaryButtonStyle())
+                    }
+                    .padding(.horizontal, 10)
+                }
+                .padding(.vertical, 8)
+            }
+        }
+    }
+
+    private func detailRow(_ label: String, _ value: String) -> some View {
+        HStack {
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text(value)
+                .font(.caption2.monospaced())
+        }
+    }
+
+    // MARK: - Create Panel (Inline)
+
+    @State private var createText = ""
+    @State private var isCreating = false
+
+    @ViewBuilder
+    private var createPanel: some View {
+        VStack(spacing: 0) {
+            // Header with back button
+            HStack {
+                Button { withAnimation(.easeInOut(duration: 0.15)) { showingCreate = false } } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+                Text("Create Inscription")
+                    .font(.caption.bold())
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+
+            Divider()
+
+            ScrollView {
+                VStack(spacing: 12) {
+                    Text("Enter text to inscribe on Ethereum")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    TextEditor(text: $createText)
+                        .font(.body.monospaced())
+                        .frame(height: 150)
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.3)))
+
+                    Text("\(createText.utf8.count) bytes")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+
+                    Button {
+                        createInscription()
+                    } label: {
+                        if isCreating {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Label("Create", systemImage: "plus")
+                                .font(.caption)
+                        }
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .disabled(createText.isEmpty || isCreating)
+                }
+                .padding(10)
+            }
+        }
+    }
+
+    private func createInscription() {
+        guard let account = account else { return }
+        isCreating = true
+
+        Task {
+            do {
+                let privateKey = try await walletViewModel.getPrivateKey(for: account)
+                let ethscriptionService = EthscriptionService(web3Service: Web3Service())
+                let _ = try await ethscriptionService.createEthscription(
+                    content: createText.data(using: .utf8) ?? Data(),
+                    mimeType: "text/plain",
+                    recipient: account.address,
+                    from: account.address,
+                    privateKey: privateKey
+                )
+                await MainActor.run {
+                    isCreating = false
+                    showingCreate = false
+                    createText = ""
+                    Task { await viewModel.refresh() }
+                }
+            } catch {
+                await MainActor.run {
+                    isCreating = false
+                }
             }
         }
     }
@@ -271,7 +429,7 @@ struct EthscriptionGridItem: View {
                 } else if ethscription.isText, let text = ethscription.textContent {
                     Text(text)
                         .font(.system(size: min(size / 6, 14), design: .monospaced))
-                        .foregroundStyle(.primary)
+                        .foregroundColor(AppColors.accent)
                         .multilineTextAlignment(.center)
                         .lineLimit(size > 100 ? 6 : 3)
                         .padding(8)

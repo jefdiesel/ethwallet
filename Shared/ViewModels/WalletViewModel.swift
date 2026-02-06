@@ -40,6 +40,9 @@ final class WalletViewModel: ObservableObject {
     @Published private(set) var balance: String = "0"
     @Published private(set) var balanceUSD: String = "$0.00"
 
+    // Smart account state
+    @Published var smartAccountViewModel = SmartAccountViewModel()
+
     // MARK: - Services
 
     private let keychainService: KeychainService
@@ -80,6 +83,14 @@ final class WalletViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.updateUSDBalance()
+            }
+            .store(in: &cancellables)
+
+        // Sync smart account network when wallet network changes
+        $selectedNetwork
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] network in
+                self?.smartAccountViewModel.switchNetwork(network)
             }
             .store(in: &cancellables)
     }
@@ -321,6 +332,45 @@ final class WalletViewModel: ObservableObject {
         wallet.accounts[index].label = newLabel
         self.wallet = wallet
         saveWalletMetadata(wallet)
+    }
+
+    // MARK: - Smart Account Management
+
+    /// Upgrade an EOA account to a smart account
+    func upgradeToSmartAccount(_ account: Account) async throws -> SmartAccount {
+        let smartAccount = try await smartAccountViewModel.getOrCreateSmartAccount(for: account)
+
+        // Update the account with smart account reference
+        guard var wallet = wallet,
+              let index = wallet.accounts.firstIndex(where: { $0.id == account.id }) else {
+            throw WalletError.noWallet
+        }
+
+        wallet.accounts[index].smartAccountId = smartAccount.id
+        self.wallet = wallet
+        saveWalletMetadata(wallet)
+
+        // Update selected account if needed
+        if selectedAccount?.id == account.id {
+            selectedAccount = wallet.accounts[index]
+        }
+
+        return smartAccount
+    }
+
+    /// Check if the current account has a smart account
+    func hasSmartAccount(_ account: Account) -> Bool {
+        smartAccountViewModel.hasSmartAccount(account)
+    }
+
+    /// Get the smart account for an EOA
+    func getSmartAccount(for account: Account) -> SmartAccount? {
+        smartAccountViewModel.getSmartAccount(for: account)
+    }
+
+    /// Check if smart accounts are supported on the current network
+    var isSmartAccountSupported: Bool {
+        BundlerService.isChainSupported(selectedNetwork.id)
     }
 
     // MARK: - Balance

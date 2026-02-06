@@ -355,3 +355,26 @@ enum BiometricType {
         }
     }
 }
+
+// MARK: - Smart Account Storage Extension
+
+extension KeychainService {
+    /// Save smart accounts to UserDefaults (non-sensitive data)
+    func saveSmartAccounts(_ accounts: [SmartAccount]) throws {
+        let data = try JSONEncoder().encode(accounts)
+        UserDefaults.standard.set(data, forKey: "smartAccounts")
+    }
+
+    /// Load smart accounts from UserDefaults
+    func loadSmartAccounts() throws -> [SmartAccount] {
+        guard let data = UserDefaults.standard.data(forKey: "smartAccounts") else {
+            return []
+        }
+        return try JSONDecoder().decode([SmartAccount].self, from: data)
+    }
+
+    /// Delete all smart accounts
+    func deleteSmartAccounts() {
+        UserDefaults.standard.removeObject(forKey: "smartAccounts")
+    }
+}

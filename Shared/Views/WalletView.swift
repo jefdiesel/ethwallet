@@ -1,4 +1,63 @@
 import SwiftUI
+import BigInt
+#if canImport(CoreImage)
+import CoreImage.CIFilterBuiltins
+#endif
+#if os(macOS)
+import AppKit
+
+/// Manages the browser window
+@MainActor
+class BrowserWindowManager {
+    static let shared = BrowserWindowManager()
+    private var browserWindow: NSWindow?
+    private weak var walletViewModel: WalletViewModel?
+
+    private init() {}
+
+    func configure(walletViewModel: WalletViewModel) {
+        self.walletViewModel = walletViewModel
+    }
+
+    func openBrowser(url: URL? = nil) {
+        guard let walletVM = walletViewModel else { return }
+
+        if let window = browserWindow, window.isVisible {
+            window.makeKeyAndOrderFront(nil)
+            return
+        }
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 1200, height: 800),
+            styleMask: [.titled, .closable, .resizable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "Web Browser"
+        window.center()
+
+        let contentView = HStack(spacing: 0) {
+            BrowserView()
+                .environmentObject(walletVM)
+                .frame(minWidth: 600)
+            Divider()
+            WalletView()
+                .environmentObject(walletVM)
+                .frame(width: 440)
+        }
+        .preferredColorScheme(.dark)
+        .tint(Color(red: 0.765, green: 1.0, blue: 0.0))
+
+        window.contentView = NSHostingView(rootView: contentView)
+        window.makeKeyAndOrderFront(nil)
+        browserWindow = window
+    }
+
+    func openURL(_ url: URL) {
+        openBrowser(url: url)
+    }
+}
+#endif
 
 /// Main wallet dashboard view
 struct WalletView: View {
@@ -11,48 +70,36 @@ struct WalletView: View {
     @State private var selectedTab: WalletTab = .tokens
 
     enum WalletTab: Hashable {
-        case tokens, nfts, ethscriptions, connect, browser, history
+        case tokens, nfts, ethscriptions, connect, history
     }
 
+    @State private var showingBrowser = false
+
     var body: some View {
-        NavigationStack {
-            Group {
-                if viewModel.isLoading {
-                    loadingView
-                } else if viewModel.wallet != nil {
-                    walletContent
-                } else if viewModel.hasWallet && viewModel.wallet == nil {
-                    // Wallet exists but not loaded (auth failed/canceled)
-                    authRetryView
-                } else {
-                    onboardingView
-                }
+        Group {
+            if viewModel.isLoading {
+                loadingView
+            } else if showingSend {
+                sendPanel
+            } else if showingReceive {
+                receivePanel
+            } else if viewModel.wallet != nil {
+                walletContent
+            } else if viewModel.hasWallet && viewModel.wallet == nil {
+                authRetryView
+            } else {
+                onboardingView
             }
-            .navigationTitle(selectedTab == .browser ? "" : "EthWallet")
-            #if os(macOS)
-            .toolbar {
-                ToolbarItemGroup(placement: .primaryAction) {
-                    if viewModel.hasWallet {
-                        toolbarItems
-                    }
-                }
-            }
-            #endif
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .sheet(isPresented: $showingCreateWallet) {
             CreateWalletSheet(viewModel: viewModel)
         }
         .sheet(isPresented: $showingImportWallet) {
             ImportWalletSheet(viewModel: viewModel)
         }
-        .sheet(isPresented: $showingSend) {
-            SendView(account: viewModel.selectedAccount)
-        }
-        .sheet(isPresented: $showingReceive) {
-            ReceiveView(account: viewModel.selectedAccount)
-        }
         .sheet(isPresented: $showingSettings) {
-            SettingsView(account: viewModel.selectedAccount)
+            SettingsView(account: viewModel.selectedAccount, smartAccountViewModel: viewModel.smartAccountViewModel)
         }
     }
 
@@ -101,17 +148,23 @@ struct WalletView: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
 
-            // Tab picker
-            Picker("", selection: $selectedTab) {
-                Text("Tokens").tag(WalletTab.tokens)
-                Text("NFTs").tag(WalletTab.nfts)
-                Text("Etch").tag(WalletTab.ethscriptions)
-                Text("WC").tag(WalletTab.connect)
-                Text("Web").tag(WalletTab.browser)
-                Text("Tx").tag(WalletTab.history)
+            // Tab picker + Web button
+            HStack(spacing: 4) {
+                Picker("", selection: $selectedTab) {
+                    Text("Tokens").tag(WalletTab.tokens)
+                    Text("NFTs").tag(WalletTab.nfts)
+                    Text("Inscribed").tag(WalletTab.ethscriptions)
+                    Text("Connect").tag(WalletTab.connect)
+                    Text("Tx").tag(WalletTab.history)
+                }
+                .pickerStyle(.segmented)
+                .controlSize(.mini)
+
+                Button { openBrowserWindow() } label: {
+                    Image(systemName: "safari")
+                }
+                .buttonStyle(IconButtonStyle())
             }
-            .pickerStyle(.segmented)
-            .controlSize(.small)
             .padding(.horizontal, 8)
             .padding(.bottom, 4)
 
@@ -128,9 +181,6 @@ struct WalletView: View {
                     .environmentObject(viewModel)
             case .connect:
                 WalletConnectView()
-                    .environmentObject(viewModel)
-            case .browser:
-                BrowserView()
                     .environmentObject(viewModel)
             case .history:
                 if let account = viewModel.selectedAccount {
@@ -196,6 +246,344 @@ struct WalletView: View {
         }
     }
 
+    // MARK: - Send Panel (Inline)
+
+    @State private var sendRecipient = ""
+    @State private var sendAmount = ""
+    @State private var sendSelectedAsset: SendAsset = .eth
+    @State private var isSending = false
+    @State private var sendError: String?
+    @State private var sendSuccess: String?
+
+    @ViewBuilder
+    private var sendPanel: some View {
+        VStack(spacing: 0) {
+            // Header with back button
+            HStack {
+                Button { withAnimation(.easeInOut(duration: 0.15)) {
+                    showingSend = false
+                    sendRecipient = ""
+                    sendAmount = ""
+                    sendError = nil
+                    sendSuccess = nil
+                } } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+                Text("Send")
+                    .font(.caption.bold())
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+
+            Divider()
+
+            if let success = sendSuccess {
+                // Success view
+                VStack(spacing: 16) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 48))
+                        .foregroundStyle(.green)
+
+                    Text("Sent!")
+                        .font(.headline)
+
+                    Text(success)
+                        .font(.caption2.monospaced())
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .padding(8)
+                        .background(Color.secondary.opacity(0.1))
+                        .cornerRadius(6)
+
+                    Button("Done") {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            showingSend = false
+                            sendRecipient = ""
+                            sendAmount = ""
+                            sendError = nil
+                            sendSuccess = nil
+                        }
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding()
+            } else {
+                ScrollView {
+                    VStack(spacing: 12) {
+                        // Asset type
+                        Picker("", selection: $sendSelectedAsset) {
+                            ForEach(SendAsset.allCases) { asset in
+                                Text(asset.displayName).tag(asset)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .controlSize(.small)
+                        .padding(.horizontal, 10)
+
+                        // Recipient
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Recipient")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            TextField("Address", text: $sendRecipient)
+                                .textFieldStyle(.roundedBorder)
+                                .font(.caption.monospaced())
+                        }
+                        .padding(.horizontal, 10)
+
+                        // Amount (for ETH/Token)
+                        if sendSelectedAsset == .eth || sendSelectedAsset == .token {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Amount")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                HStack {
+                                    TextField("0.0", text: $sendAmount)
+                                        .textFieldStyle(.roundedBorder)
+                                        .font(.caption.monospaced())
+                                    Text(sendSelectedAsset == .eth ? "ETH" : "Token")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .padding(.horizontal, 10)
+                        }
+
+                        // Balance info
+                        HStack {
+                            Text("Balance")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text(viewModel.balance)
+                                .font(.caption2.monospacedDigit())
+                                .foregroundColor(AppColors.accent)
+                            Text("ETH")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 10)
+
+                        if let error = sendError {
+                            Text(error)
+                                .font(.caption2)
+                                .foregroundStyle(.red)
+                                .padding(.horizontal, 10)
+                        }
+
+                        // Send button
+                        Button {
+                            performSend()
+                        } label: {
+                            if isSending {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Label("Send", systemImage: "arrow.up")
+                                    .font(.caption.weight(.semibold))
+                            }
+                        }
+                        .buttonStyle(PrimaryButtonStyle())
+                        .disabled(sendRecipient.isEmpty || sendAmount.isEmpty || isSending)
+                        .padding(.horizontal, 10)
+                    }
+                    .padding(.vertical, 8)
+                }
+            }
+        }
+    }
+
+    private func performSend() {
+        guard let account = viewModel.selectedAccount else { return }
+        isSending = true
+        sendError = nil
+
+        Task {
+            do {
+                let privateKey = try await viewModel.getPrivateKey(for: account)
+                let web3 = Web3Service()
+
+                // Parse ETH amount to Wei
+                guard let weiAmount = parseEthAmount(sendAmount) else {
+                    await MainActor.run {
+                        isSending = false
+                        sendError = "Invalid amount"
+                    }
+                    return
+                }
+
+                let transaction = try await web3.buildTransaction(
+                    from: account.address,
+                    to: sendRecipient,
+                    value: weiAmount
+                )
+                let txHash = try await web3.sendTransaction(transaction, privateKey: privateKey)
+
+                await MainActor.run {
+                    isSending = false
+                    sendSuccess = txHash
+                    Task { await viewModel.refreshBalance() }
+                }
+            } catch {
+                await MainActor.run {
+                    isSending = false
+                    sendError = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    private func parseEthAmount(_ amount: String) -> BigUInt? {
+        let parts = amount.split(separator: ".")
+        let integerPart = String(parts.first ?? "0")
+        let fractionalPart = parts.count > 1 ? String(parts[1]) : ""
+
+        // ETH has 18 decimals
+        let decimals = 18
+        let paddedFractional = fractionalPart.padding(toLength: decimals, withPad: "0", startingAt: 0)
+        let fullString = integerPart + paddedFractional.prefix(decimals)
+
+        return BigUInt(fullString)
+    }
+
+    // MARK: - Receive Panel (Inline)
+
+    @State private var addressCopied = false
+
+    @ViewBuilder
+    private var receivePanel: some View {
+        VStack(spacing: 0) {
+            // Header with back button
+            HStack {
+                Button { withAnimation(.easeInOut(duration: 0.15)) { showingReceive = false } } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+                Text("Receive")
+                    .font(.caption.bold())
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+
+            Divider()
+
+            ScrollView {
+                VStack(spacing: 16) {
+                    // QR Code
+                    if let account = viewModel.selectedAccount {
+                        qrCodeImage(for: account.address)
+                            .interpolation(.none)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 140, height: 140)
+                            .padding(12)
+                            .background(Color.white)
+                            .cornerRadius(12)
+                    }
+
+                    // Address
+                    VStack(spacing: 4) {
+                        Text("Your Address")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+
+                        if let address = viewModel.selectedAccount?.address {
+                            Text(address)
+                                .font(.caption2.monospaced())
+                                .multilineTextAlignment(.center)
+                                .textSelection(.enabled)
+                                .padding(8)
+                                .background(Color.secondary.opacity(0.1))
+                                .cornerRadius(6)
+                        }
+                    }
+                    .padding(.horizontal, 10)
+
+                    // Copy button
+                    Button {
+                        copyAddress()
+                    } label: {
+                        Label(addressCopied ? "Copied!" : "Copy Address", systemImage: addressCopied ? "checkmark" : "doc.on.doc")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+
+                    // Warning
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                            .font(.caption2)
+                        Text("Only send ETH or EVM tokens to this address")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(8)
+                    .background(Color.orange.opacity(0.1))
+                    .cornerRadius(6)
+                    .padding(.horizontal, 10)
+                }
+                .padding(.vertical, 12)
+            }
+        }
+    }
+
+    private func copyAddress() {
+        guard let address = viewModel.selectedAccount?.address else { return }
+        #if os(macOS)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(address, forType: .string)
+        #else
+        UIPasteboard.general.string = address
+        #endif
+
+        withAnimation { addressCopied = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            withAnimation { addressCopied = false }
+        }
+    }
+
+    #if canImport(CoreImage)
+    private func qrCodeImage(for address: String) -> Image {
+        let context = CIContext()
+        let filter = CIFilter.qrCodeGenerator()
+        filter.message = Data(address.utf8)
+        filter.correctionLevel = "M"
+
+        guard let ciImage = filter.outputImage else {
+            return Image(systemName: "qrcode")
+        }
+
+        let scale = 10.0
+        let transform = CGAffineTransform(scaleX: scale, y: scale)
+        let scaledImage = ciImage.transformed(by: transform)
+
+        guard let cgImage = context.createCGImage(scaledImage, from: scaledImage.extent) else {
+            return Image(systemName: "qrcode")
+        }
+
+        return Image(cgImage, scale: 1, label: Text("QR Code"))
+    }
+    #else
+    private func qrCodeImage(for address: String) -> Image {
+        return Image(systemName: "qrcode")
+    }
+    #endif
+
+    // MARK: - Browser Window
+
+    private func openBrowserWindow() {
+        #if os(macOS)
+        BrowserWindowManager.shared.configure(walletViewModel: viewModel)
+        BrowserWindowManager.shared.openBrowser()
+        #endif
+    }
+
     // MARK: - Loading View
 
     @ViewBuilder
@@ -207,7 +595,7 @@ struct WalletView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     // MARK: - Auth Retry View

@@ -43,6 +43,13 @@ final class SendViewModel: ObservableObject {
     @Published private(set) var sendError: String?
     @Published private(set) var lastTransactionHash: String?
 
+    // Smart account support
+    @Published var useSmartAccount: Bool = false
+    @Published var smartAccount: SmartAccount?
+    @Published var usePaymaster: Bool = false
+    @Published var paymasterMode: PaymasterMode = .none
+    @Published private(set) var userOperationHash: String?  // For tracking smart account tx
+
     // MARK: - Dependencies
 
     private let web3Service: Web3Service
@@ -51,6 +58,11 @@ final class SendViewModel: ObservableObject {
     private let priceService: PriceService
     private let nameService: NameService
     private let tokenService: TokenService
+
+    // Smart account services
+    private var smartAccountService: SmartAccountService?
+    private var bundlerService: BundlerService?
+    private var paymasterService: PaymasterService?
 
     private var account: Account?
     private var availableBalance: BigUInt = 0
@@ -93,6 +105,43 @@ final class SendViewModel: ObservableObject {
     func configure(account: Account, balance: BigUInt) {
         self.account = account
         self.availableBalance = balance
+    }
+
+    /// Configure smart account support
+    func configureSmartAccount(
+        smartAccount: SmartAccount?,
+        web3Service: Web3Service
+    ) {
+        self.smartAccount = smartAccount
+
+        if let smartAccount = smartAccount {
+            let chainId = web3Service.network.id
+            bundlerService = BundlerService(chainId: chainId)
+            paymasterService = PaymasterService(chainId: chainId)
+
+            if let bundler = bundlerService {
+                smartAccountService = SmartAccountService(
+                    web3Service: web3Service,
+                    bundlerService: bundler,
+                    chainId: chainId
+                )
+            }
+        } else {
+            bundlerService = nil
+            paymasterService = nil
+            smartAccountService = nil
+            useSmartAccount = false
+        }
+    }
+
+    /// Check if smart account sending is available
+    var canUseSmartAccount: Bool {
+        smartAccount != nil && smartAccountService != nil
+    }
+
+    /// Check if paymaster is available
+    var isPaymasterAvailable: Bool {
+        paymasterService?.isAvailable ?? false
     }
 
     // MARK: - Validation
@@ -356,6 +405,7 @@ final class SendViewModel: ObservableObject {
         isSending = true
         sendError = nil
         lastTransactionHash = nil
+        userOperationHash = nil
 
         defer { isSending = false }
 
@@ -384,6 +434,16 @@ final class SendViewModel: ObservableObject {
                 throw SendError.notReady
             }
 
+            // Use smart account if enabled
+            if useSmartAccount, let smartAccount = smartAccount {
+                return try await sendViaSmartAccount(
+                    smartAccount: smartAccount,
+                    to: targetAddress,
+                    privateKey: privateKey
+                )
+            }
+
+            // Standard EOA send
             let txHash: String
 
             switch selectedAsset {
@@ -434,6 +494,92 @@ final class SendViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Smart Account Send
+
+    /// Send via smart account using ERC-4337 UserOperation
+    private func sendViaSmartAccount(
+        smartAccount: SmartAccount,
+        to: String,
+        privateKey: Data
+    ) async throws -> String {
+        guard let service = smartAccountService,
+              let bundler = bundlerService else {
+            throw SendError.smartAccountServiceNotInitialized
+        }
+
+        // Build the call(s)
+        var calls: [UserOperationCall] = []
+
+        switch selectedAsset {
+        case .eth:
+            guard let parsedAmount = try? web3Service.parseEther(amount) else {
+                throw SendError.invalidAmount
+            }
+            calls.append(UserOperationCall.transfer(to: to, value: parsedAmount))
+
+        case .token:
+            guard let token = selectedToken,
+                  let parsedAmount = tokenService.parseTokenAmount(amount, decimals: token.decimals) else {
+                throw SendError.invalidAmount
+            }
+            // Encode ERC-20 transfer
+            let transferData = encodeERC20Transfer(to: to, amount: parsedAmount)
+            calls.append(UserOperationCall.contractCall(to: token.address, data: transferData))
+
+        case .ethscription:
+            guard let ethscription = selectedEthscription else {
+                throw SendError.noEthscriptionSelected
+            }
+            // Ethscription transfer is sending 0 ETH with ethscription ID as data
+            let data = Data(hex: ethscription.id)
+            calls.append(UserOperationCall(to: to, value: 0, data: data))
+        }
+
+        // Build UserOperation
+        var userOp = try await service.buildUserOperation(
+            account: smartAccount,
+            calls: calls
+        )
+
+        // Apply paymaster if enabled
+        if usePaymaster, let paymaster = paymasterService {
+            userOp = try await paymaster.buildSponsoredUserOperation(
+                from: userOp,
+                mode: paymasterMode
+            )
+        }
+
+        // Sign the UserOperation
+        userOp = try service.signUserOperation(userOp, privateKey: privateKey)
+
+        // Send to bundler
+        let userOpHash = try await bundler.sendUserOperation(userOp)
+        userOperationHash = userOpHash
+
+        return userOpHash
+    }
+
+    private func encodeERC20Transfer(to: String, amount: BigUInt) -> Data {
+        // transfer(address,uint256) selector: 0xa9059cbb
+        var data = Data()
+        data.append(Data(hex: "a9059cbb"))
+
+        // Pad address to 32 bytes
+        var toHex = to.lowercased()
+        if toHex.hasPrefix("0x") {
+            toHex = String(toHex.dropFirst(2))
+        }
+        let toPadded = String(repeating: "0", count: 64 - toHex.count) + toHex
+        data.append(Data(hex: toPadded))
+
+        // Pad amount to 32 bytes
+        let amountHex = String(amount, radix: 16)
+        let amountPadded = String(repeating: "0", count: 64 - amountHex.count) + amountHex
+        data.append(Data(hex: amountPadded))
+
+        return data
+    }
+
     /// Set to max amount (ETH and token)
     func setMaxAmount() {
         switch selectedAsset {
@@ -463,6 +609,8 @@ final class SendViewModel: ObservableObject {
         sendError = nil
         lastTransactionHash = nil
         securityWarnings = []
+        userOperationHash = nil
+        // Keep smart account settings between sends
     }
 
     // MARK: - Display Helpers
@@ -509,6 +657,8 @@ enum SendError: Error, LocalizedError {
     case keyDerivationFailed
     case noEthscriptionSelected
     case transactionFailed(String)
+    case smartAccountServiceNotInitialized
+    case userOperationFailed(String)
 
     var errorDescription: String? {
         switch self {
@@ -522,6 +672,10 @@ enum SendError: Error, LocalizedError {
             return "No ethscription selected"
         case .transactionFailed(let reason):
             return "Transaction failed: \(reason)"
+        case .smartAccountServiceNotInitialized:
+            return "Smart account service not initialized"
+        case .userOperationFailed(let reason):
+            return "UserOperation failed: \(reason)"
         }
     }
 }

@@ -3,6 +3,8 @@ import SwiftUI
 /// View for sending ETH or ethscriptions
 struct SendView: View {
     let account: Account?
+    var preselectedToken: Token? = nil
+    var smartAccount: SmartAccount? = nil
     @StateObject private var viewModel = SendViewModel()
     @Environment(\.dismiss) private var dismiss
 
@@ -177,9 +179,44 @@ struct SendView: View {
                     }
                 }
 
+                // Smart Account toggle
+                if viewModel.canUseSmartAccount {
+                    Section("Transaction Type") {
+                        Toggle(isOn: $viewModel.useSmartAccount) {
+                            HStack {
+                                Image(systemName: "shield.checkered")
+                                Text("Use Smart Account")
+                            }
+                        }
+
+                        if viewModel.useSmartAccount {
+                            Toggle(isOn: $viewModel.usePaymaster) {
+                                HStack {
+                                    Image(systemName: "gift")
+                                    Text("Gasless (Sponsored)")
+                                }
+                            }
+                            .disabled(!viewModel.isPaymasterAvailable)
+
+                            if !viewModel.isPaymasterAvailable {
+                                Text("Paymaster not available. Configure API key in Settings.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+
                 // Gas estimate
                 Section("Transaction Fee") {
-                    if viewModel.isEstimatingGas {
+                    if viewModel.useSmartAccount && viewModel.usePaymaster {
+                        HStack {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                            Text("Gas sponsored - Free!")
+                                .fontWeight(.medium)
+                        }
+                    } else if viewModel.isEstimatingGas {
                         HStack {
                             ProgressView()
                                 .controlSize(.small)
@@ -240,6 +277,14 @@ struct SendView: View {
         .onAppear {
             if let account = account {
                 viewModel.configure(account: account, balance: 0)
+
+                // Configure smart account if available
+                if let smartAccount = smartAccount {
+                    viewModel.configureSmartAccount(
+                        smartAccount: smartAccount,
+                        web3Service: Web3Service()
+                    )
+                }
             }
         }
         .sheet(isPresented: $showingConfirmation) {
@@ -249,7 +294,8 @@ struct SendView: View {
         }
         .sheet(isPresented: $showingSuccess) {
             SendSuccessSheet(
-                txHash: viewModel.lastTransactionHash ?? "",
+                txHash: viewModel.lastTransactionHash ?? viewModel.userOperationHash ?? "",
+                isUserOperation: viewModel.userOperationHash != nil,
                 onDone: { dismiss() }
             )
         }
@@ -380,6 +426,7 @@ struct SendConfirmationSheet: View {
 
 struct SendSuccessSheet: View {
     let txHash: String
+    var isUserOperation: Bool = false
     var onDone: () -> Void
 
     @StateObject private var networkManager = NetworkManager.shared
@@ -393,25 +440,59 @@ struct SendSuccessSheet: View {
             Text("Sent")
                 .font(.headline)
 
-            VStack(spacing: 4) {
-                Text("Transaction Hash")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+            if isUserOperation {
+                // Smart account transaction
+                VStack(spacing: 8) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "shield.checkered")
+                            .font(.caption)
+                        Text("Smart Account Transaction")
+                            .font(.caption)
+                    }
+                    .foregroundStyle(.blue)
 
-                Text(txHash)
-                    .font(.caption2.monospaced())
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .textSelection(.enabled)
-            }
-            .padding(10)
-            .background(Color.secondary.opacity(0.08))
-            .cornerRadius(6)
+                    VStack(spacing: 4) {
+                        Text("UserOperation Hash")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
 
-            if let explorerURL = networkManager.selectedNetwork.explorerTransactionURL(txHash) {
-                Link(destination: explorerURL) {
-                    Label("View on Explorer", systemImage: "arrow.up.right.square")
-                        .font(.caption)
+                        Text(txHash)
+                            .font(.caption2.monospaced())
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .textSelection(.enabled)
+                    }
+                    .padding(10)
+                    .background(Color.secondary.opacity(0.08))
+                    .cornerRadius(6)
+
+                    Text("Your transaction is being bundled and will appear on-chain shortly.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+            } else {
+                // Standard transaction
+                VStack(spacing: 4) {
+                    Text("Transaction Hash")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+
+                    Text(txHash)
+                        .font(.caption2.monospaced())
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+                }
+                .padding(10)
+                .background(Color.secondary.opacity(0.08))
+                .cornerRadius(6)
+
+                if let explorerURL = networkManager.selectedNetwork.explorerTransactionURL(txHash) {
+                    Link(destination: explorerURL) {
+                        Label("View on Explorer", systemImage: "arrow.up.right.square")
+                            .font(.caption)
+                    }
                 }
             }
 
@@ -421,7 +502,7 @@ struct SendSuccessSheet: View {
             .buttonStyle(.primary)
         }
         .padding()
-        .frame(minWidth: 280, minHeight: 260)
+        .frame(minWidth: 280, minHeight: 280)
     }
 }
 

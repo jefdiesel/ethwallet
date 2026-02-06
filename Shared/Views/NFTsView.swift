@@ -90,33 +90,8 @@ struct NFTsView: View {
 
             ScrollView {
                 VStack(spacing: 12) {
-                    // Image
-                    if let imageURL = nft.imageURL {
-                        AsyncImage(url: imageURL) { phase in
-                            switch phase {
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .cornerRadius(8)
-                            case .failure:
-                                nftPlaceholder(text: "Failed to load")
-                            default:
-                                ProgressView()
-                                    .frame(height: 150)
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 180)
-                    } else if let imageData = nft.imageData, let nsImage = NSImage(data: imageData) {
-                        Image(nsImage: nsImage)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .cornerRadius(8)
-                            .frame(height: 180)
-                    } else {
-                        nftPlaceholder(text: "No image")
-                    }
+                    // Image (handles IPFS URLs)
+                    NFTPreviewImage(nft: nft)
 
                     // Name & Token ID
                     VStack(alignment: .leading, spacing: 2) {
@@ -186,7 +161,11 @@ struct NFTsView: View {
                         .buttonStyle(PrimaryButtonStyle())
 
                         if let url = openSeaURL(for: nft) {
-                            Link(destination: url) {
+                            Button {
+                                #if os(macOS)
+                                BrowserWindowManager.shared.openURL(url)
+                                #endif
+                            } label: {
                                 Label("OpenSea", systemImage: "safari")
                                     .font(.caption)
                             }
@@ -349,17 +328,17 @@ enum NFTGridLayout: String, CaseIterable {
 
     var columns: Int {
         switch self {
-        case .small: return 5
-        case .medium: return 3
-        case .large: return 2
+        case .small: return 4
+        case .medium: return 2
+        case .large: return 1
         }
     }
 
     var itemSize: CGFloat {
         switch self {
-        case .small: return 100
-        case .medium: return 150
-        case .large: return 250
+        case .small: return 80
+        case .medium: return 120
+        case .large: return 200
         }
     }
 }
@@ -462,6 +441,100 @@ struct NFTGridItem: View {
             }
         } catch {
             // Silently fail
+        }
+    }
+}
+
+// MARK: - NFT Preview Image (handles IPFS URLs)
+
+struct NFTPreviewImage: View {
+    let nft: NFT
+
+    @State private var loadedImage: Data?
+    @State private var isLoading = true
+    @State private var failed = false
+
+    var body: some View {
+        Group {
+            if let imageData = loadedImage ?? nft.imageData {
+                let finalData = NFTService.extractRasterFromSVGData(imageData) ?? imageData
+                #if os(macOS)
+                if let nsImage = NSImage(data: finalData) {
+                    Image(nsImage: nsImage)
+                        .resizable()
+                        .interpolation(.none)
+                        .aspectRatio(contentMode: .fit)
+                        .cornerRadius(8)
+                } else {
+                    placeholder(text: "Invalid image")
+                }
+                #else
+                if let uiImage = UIImage(data: finalData) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .interpolation(.none)
+                        .aspectRatio(contentMode: .fit)
+                        .cornerRadius(8)
+                } else {
+                    placeholder(text: "Invalid image")
+                }
+                #endif
+            } else if isLoading {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 200)
+            } else if failed {
+                placeholder(text: "Failed to load")
+            } else {
+                placeholder(text: "No image")
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .task {
+            await loadImage()
+        }
+    }
+
+    @ViewBuilder
+    private func placeholder(text: String) -> some View {
+        VStack {
+            Image(systemName: "photo")
+                .font(.title)
+                .foregroundStyle(.secondary)
+            Text(text)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 200)
+        .background(Color.secondary.opacity(0.1))
+        .cornerRadius(8)
+    }
+
+    private func loadImage() async {
+        guard let url = nft.imageURL else {
+            isLoading = false
+            return
+        }
+
+        // Handle IPFS URLs
+        var fetchURL = url
+        if url.absoluteString.hasPrefix("ipfs://") {
+            let hash = url.absoluteString.replacingOccurrences(of: "ipfs://", with: "")
+            fetchURL = URL(string: "https://ipfs.io/ipfs/\(hash)") ?? url
+        }
+
+        do {
+            let (data, _) = try await URLSession.shared.data(from: fetchURL)
+            await MainActor.run {
+                self.loadedImage = data
+                self.isLoading = false
+            }
+        } catch {
+            await MainActor.run {
+                self.failed = true
+                self.isLoading = false
+            }
         }
     }
 }

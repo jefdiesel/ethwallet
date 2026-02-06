@@ -46,7 +46,7 @@ class BrowserViewModel: ObservableObject {
         webView.allowsBackForwardNavigationGestures = true
 
         let tab = BrowserTab(webView: webView)
-        let coordinator = TabCoordinator(tab: tab, browserModel: self)
+        let coordinator = TabCoordinator(tab: tab, viewModel: self)
         tab.coordinator = coordinator
 
         webView.navigationDelegate = coordinator
@@ -413,12 +413,12 @@ class BrowserViewModel: ObservableObject {
 
 class TabCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
     weak var tab: BrowserTab?
-    weak var browserModel: BrowserViewModel?
+    weak var viewModel: BrowserViewModel?
     private let networkManager = NetworkManager.shared
 
-    init(tab: BrowserTab, browserModel: BrowserViewModel) {
+    init(tab: BrowserTab, viewModel: BrowserViewModel) {
         self.tab = tab
-        self.browserModel = browserModel
+        self.viewModel = viewModel
     }
 
     // MARK: - WKScriptMessageHandler
@@ -499,28 +499,28 @@ class TabCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMess
 
     @MainActor
     private func handleWeb3Request(id: Double, method: String, params: [Any]) async {
-        guard let tab = tab, let browserModel = browserModel else { return }
+        guard let tab = tab, let viewModel = viewModel else { return }
 
         switch method {
         case "eth_requestAccounts", "eth_accounts":
-            if let address = browserModel.connectedAddress {
-                browserModel.respondToRequest(id: id, result: [address.lowercased()], error: nil, tab: tab)
+            if let address = viewModel.connectedAddress {
+                viewModel.respondToRequest(id: id, result: [address.lowercased()], error: nil, tab: tab)
             } else {
-                browserModel.respondToRequest(id: id, result: [] as [String], error: "No account", tab: tab)
+                viewModel.respondToRequest(id: id, result: [] as [String], error: "No account", tab: tab)
             }
 
         case "eth_chainId":
             let chainId = "0x" + String(networkManager.selectedNetwork.id, radix: 16)
-            browserModel.respondToRequest(id: id, result: chainId, error: nil, tab: tab)
+            viewModel.respondToRequest(id: id, result: chainId, error: nil, tab: tab)
 
         case "net_version":
-            browserModel.respondToRequest(id: id, result: String(networkManager.selectedNetwork.id), error: nil, tab: tab)
+            viewModel.respondToRequest(id: id, result: String(networkManager.selectedNetwork.id), error: nil, tab: tab)
 
         case "personal_sign", "eth_sign", "eth_sendTransaction", "eth_signTypedData", "eth_signTypedData_v4":
             print("[Browser] Sign request: \(method), showing sheet")
             let request = Web3Request(id: id, method: method, params: params)
-            browserModel.pendingSignRequest = request
-            browserModel.pendingSignTab = tab
+            viewModel.pendingSignRequest = request
+            viewModel.pendingSignTab = tab
 
         case "wallet_switchEthereumChain":
             if let chainParam = params.first as? [String: Any],
@@ -528,11 +528,11 @@ class TabCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMess
                 let chainId = Int(chainIdHex.dropFirst(2), radix: 16) ?? 1
                 if let network = Network.forChainId(chainId) {
                     networkManager.selectNetwork(network)
-                    browserModel.respondToRequest(id: id, result: NSNull(), error: nil, tab: tab)
+                    viewModel.respondToRequest(id: id, result: NSNull(), error: nil, tab: tab)
                     let js = "window._ethWalletEvent && window._ethWalletEvent('chainChanged', '\(chainIdHex)');"
                     tab.webView.evaluateJavaScript(js, completionHandler: nil)
                 } else {
-                    browserModel.respondToRequest(id: id, result: nil, error: "Chain not supported", tab: tab)
+                    viewModel.respondToRequest(id: id, result: nil, error: "Chain not supported", tab: tab)
                 }
             }
 
@@ -543,13 +543,13 @@ class TabCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMess
 
     @MainActor
     private func forwardRPCCall(id: Double, method: String, params: [Any], tab: BrowserTab) async {
-        guard let browserModel = browserModel else { return }
+        guard let viewModel = viewModel else { return }
         let web3Service = Web3Service(network: networkManager.selectedNetwork)
         do {
             let result = try await web3Service.rawRPCCall(method: method, params: params)
-            browserModel.respondToRequest(id: id, result: result, error: nil, tab: tab)
+            viewModel.respondToRequest(id: id, result: result, error: nil, tab: tab)
         } catch {
-            browserModel.respondToRequest(id: id, result: nil, error: error.localizedDescription, tab: tab)
+            viewModel.respondToRequest(id: id, result: nil, error: error.localizedDescription, tab: tab)
         }
     }
 
@@ -580,7 +580,7 @@ class TabCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMess
             }
 
             // Re-announce provider
-            if let address = browserModel?.connectedAddress {
+            if let address = viewModel?.connectedAddress {
                 let js = """
                 if (window._ethWalletEvent) { window._ethWalletEvent('accountsChanged', ['\(address.lowercased())']); }
                 if (window.dispatchEvent && window.ethereum) {
@@ -620,7 +620,7 @@ class TabCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMess
         // Open in new tab instead of external window
         Task { @MainActor in
             if let url = navigationAction.request.url {
-                _ = browserModel?.createTab(url: url)
+                _ = viewModel?.createTab(url: url)
             }
         }
         return nil // Return nil so WKWebView doesn't try to create its own window
@@ -631,7 +631,11 @@ class TabCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMess
 
 struct BrowserView: View {
     @EnvironmentObject var walletViewModel: WalletViewModel
-    @StateObject private var browserModel = BrowserViewModel()
+    @ObservedObject var viewModel: BrowserViewModel
+
+    init(viewModel: BrowserViewModel? = nil) {
+        self._viewModel = ObservedObject(wrappedValue: viewModel ?? BrowserViewModel())
+    }
 
     @State private var urlText = ""
     @State private var showingSignSheet = false
@@ -649,7 +653,7 @@ struct BrowserView: View {
             browserToolbar
 
             // Security warning banner
-            if let warnings = browserModel.activeTab?.securityWarnings, !warnings.isEmpty, !dismissedWarnings {
+            if let warnings = viewModel.activeTab?.securityWarnings, !warnings.isEmpty, !dismissedWarnings {
                 SecurityWarningBanner(warnings: warnings) {
                     dismissedWarnings = true
                 }
@@ -661,9 +665,9 @@ struct BrowserView: View {
 
             // Web content (with blocking overlay for critical warnings)
             ZStack {
-                WebViewContainer(browserModel: browserModel)
+                WebViewContainer(viewModel: viewModel)
 
-                if let warnings = browserModel.activeTab?.securityWarnings,
+                if let warnings = viewModel.activeTab?.securityWarnings,
                    let critical = warnings.first(where: { $0.severity == .critical }),
                    !dismissedWarnings {
                     Color.black.opacity(0.5)
@@ -675,7 +679,7 @@ struct BrowserView: View {
                             dismissedWarnings = true
                         },
                         onGoBack: {
-                            browserModel.goBack()
+                            viewModel.goBack()
                         }
                     )
                 }
@@ -683,49 +687,49 @@ struct BrowserView: View {
         }
         .sheet(isPresented: $showingSignSheet, onDismiss: {
             // If dismissed without action, reject the request
-            if let request = browserModel.pendingSignRequest, let tab = browserModel.pendingSignTab {
-                browserModel.respondToRequest(id: request.id, result: nil, error: "User rejected", tab: tab)
+            if let request = viewModel.pendingSignRequest, let tab = viewModel.pendingSignTab {
+                viewModel.respondToRequest(id: request.id, result: nil, error: "User rejected", tab: tab)
             }
-            browserModel.pendingSignRequest = nil
-            browserModel.pendingSignTab = nil
+            viewModel.pendingSignRequest = nil
+            viewModel.pendingSignTab = nil
         }) {
-            if let request = browserModel.pendingSignRequest, let tab = browserModel.pendingSignTab {
+            if let request = viewModel.pendingSignRequest, let tab = viewModel.pendingSignTab {
                 BrowserSignSheet(
                     request: request,
                     walletViewModel: walletViewModel,
                     onApprove: { result in
                         print("[Browser] onApprove called, result type=\(type(of: result)), id=\(request.id)")
-                        browserModel.respondToRequest(id: request.id, result: result, error: nil, tab: tab)
-                        browserModel.pendingSignRequest = nil
-                        browserModel.pendingSignTab = nil
+                        viewModel.respondToRequest(id: request.id, result: result, error: nil, tab: tab)
+                        viewModel.pendingSignRequest = nil
+                        viewModel.pendingSignTab = nil
                         showingSignSheet = false
                     },
                     onReject: {
                         print("[Browser] onReject called, id=\(request.id)")
-                        browserModel.respondToRequest(id: request.id, result: nil, error: "User rejected", tab: tab)
-                        browserModel.pendingSignRequest = nil
-                        browserModel.pendingSignTab = nil
+                        viewModel.respondToRequest(id: request.id, result: nil, error: "User rejected", tab: tab)
+                        viewModel.pendingSignRequest = nil
+                        viewModel.pendingSignTab = nil
                         showingSignSheet = false
                     }
                 )
             }
         }
-        .onChange(of: browserModel.pendingSignRequest?.id) { _, newValue in
+        .onChange(of: viewModel.pendingSignRequest?.id) { _, newValue in
             if newValue != nil {
                 showingSignSheet = true
             }
         }
         .onAppear {
-            if browserModel.tabs.isEmpty {
-                _ = browserModel.createTab()
+            if viewModel.tabs.isEmpty {
+                _ = viewModel.createTab()
             }
             if let address = walletViewModel.selectedAccount?.address {
-                browserModel.setAccount(address)
+                viewModel.setAccount(address)
             }
         }
         .onChange(of: walletViewModel.selectedAccount) { _, newAccount in
             if let address = newAccount?.address {
-                browserModel.setAccount(address)
+                viewModel.setAccount(address)
             }
         }
     }
@@ -737,7 +741,7 @@ struct BrowserView: View {
         HStack(spacing: 0) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 1) {
-                    ForEach(browserModel.tabs) { tab in
+                    ForEach(viewModel.tabs) { tab in
                         tabButton(for: tab)
                     }
                 }
@@ -747,7 +751,7 @@ struct BrowserView: View {
 
             // New tab button
             Button(action: {
-                _ = browserModel.createTab()
+                _ = viewModel.createTab()
             }) {
                 Image(systemName: "plus")
                     .font(.system(size: 11, weight: .medium))
@@ -778,7 +782,7 @@ struct BrowserView: View {
 
     @ViewBuilder
     private func tabButton(for tab: BrowserTab) -> some View {
-        let isActive = tab.id == browserModel.activeTabId
+        let isActive = tab.id == viewModel.activeTabId
 
         HStack(spacing: 6) {
             if tab.isLoading {
@@ -792,8 +796,8 @@ struct BrowserView: View {
                 .lineLimit(1)
                 .frame(maxWidth: 140, alignment: .leading)
 
-            if browserModel.tabs.count > 1 {
-                Button(action: { browserModel.closeTab(tab.id) }) {
+            if viewModel.tabs.count > 1 {
+                Button(action: { viewModel.closeTab(tab.id) }) {
                     Image(systemName: "xmark")
                         .font(.system(size: 8, weight: .bold))
                         .foregroundStyle(.secondary)
@@ -811,7 +815,7 @@ struct BrowserView: View {
             alignment: .bottom
         )
         .onTapGesture {
-            browserModel.activeTabId = tab.id
+            viewModel.activeTabId = tab.id
         }
     }
 
@@ -820,26 +824,26 @@ struct BrowserView: View {
     @ViewBuilder
     private var browserToolbar: some View {
         HStack(spacing: 10) {
-            Button(action: { browserModel.goBack() }) {
+            Button(action: { viewModel.goBack() }) {
                 Image(systemName: "chevron.left")
             }
-            .disabled(!(browserModel.activeTab?.canGoBack ?? false))
+            .disabled(!(viewModel.activeTab?.canGoBack ?? false))
             .buttonStyle(.borderless)
 
-            Button(action: { browserModel.goForward() }) {
+            Button(action: { viewModel.goForward() }) {
                 Image(systemName: "chevron.right")
             }
-            .disabled(!(browserModel.activeTab?.canGoForward ?? false))
+            .disabled(!(viewModel.activeTab?.canGoForward ?? false))
             .buttonStyle(.borderless)
 
-            Button(action: { browserModel.reload() }) {
-                Image(systemName: (browserModel.activeTab?.isLoading ?? false) ? "xmark" : "arrow.clockwise")
+            Button(action: { viewModel.reload() }) {
+                Image(systemName: (viewModel.activeTab?.isLoading ?? false) ? "xmark" : "arrow.clockwise")
             }
             .buttonStyle(.borderless)
 
             // URL bar
             HStack(spacing: 6) {
-                if browserModel.activeTab?.isSecure == true {
+                if viewModel.activeTab?.isSecure == true {
                     Image(systemName: "lock.fill")
                         .foregroundStyle(.green)
                         .font(.caption2)
@@ -849,10 +853,10 @@ struct BrowserView: View {
                     .textFieldStyle(.plain)
                     .font(.system(size: 13))
                     .onSubmit {
-                        browserModel.navigate(to: urlText)
+                        viewModel.navigate(to: urlText)
                     }
 
-                Button(action: { browserModel.navigate(to: urlText) }) {
+                Button(action: { viewModel.navigate(to: urlText) }) {
                     Image(systemName: "arrow.right")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -865,22 +869,22 @@ struct BrowserView: View {
             .background(Color.secondary.opacity(0.1))
             .cornerRadius(6)
 
-            Button(action: { browserModel.goHome() }) {
+            Button(action: { viewModel.goHome() }) {
                 Image(systemName: "house")
             }
             .buttonStyle(.borderless)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .onChange(of: browserModel.activeTab?.url) { _, newURL in
+        .onChange(of: viewModel.activeTab?.url) { _, newURL in
             if let url = newURL {
                 urlText = url.absoluteString
             }
             // Reset dismissed warnings when URL changes
             dismissedWarnings = false
         }
-        .onChange(of: browserModel.activeTabId) { _, _ in
-            if let url = browserModel.activeTab?.url {
+        .onChange(of: viewModel.activeTabId) { _, _ in
+            if let url = viewModel.activeTab?.url {
                 urlText = url.absoluteString
             }
             // Reset dismissed warnings when tab changes
@@ -892,7 +896,7 @@ struct BrowserView: View {
 // MARK: - WebView Container
 
 struct WebViewContainer: NSViewRepresentable {
-    @ObservedObject var browserModel: BrowserViewModel
+    @ObservedObject var viewModel: BrowserViewModel
 
     func makeNSView(context: Context) -> NSView {
         let container = NSView()
@@ -901,7 +905,7 @@ struct WebViewContainer: NSViewRepresentable {
     }
 
     func updateNSView(_ container: NSView, context: Context) {
-        guard let activeTab = browserModel.activeTab else { return }
+        guard let activeTab = viewModel.activeTab else { return }
         let webView = activeTab.webView
 
         // Only swap if needed

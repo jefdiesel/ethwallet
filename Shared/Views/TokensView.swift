@@ -1,4 +1,13 @@
 import SwiftUI
+import BigInt
+#if canImport(CoreImage)
+import CoreImage.CIFilterBuiltins
+#endif
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
 
 /// View displaying ERC-20 token balances
 struct TokensView: View {
@@ -87,29 +96,42 @@ struct TokensView: View {
         }
     }
 
+    @State private var showingSendToken = false
+    @State private var showingReceiveToken = false
+    @State private var tokenSendRecipient = ""
+    @State private var tokenSendAmount = ""
+    @State private var isTokenSending = false
+    @State private var tokenSendError: String?
+    @State private var tokenSendSuccess: String?
+    @State private var tokenAddressCopied = false
+
+    @EnvironmentObject var walletViewModel: WalletViewModel
+
     // MARK: - Chart Panel (Expanded)
 
     @ViewBuilder
     private func chartPanel(for token: TokenBalance) -> some View {
+        if showingSendToken {
+            tokenSendPanel(for: token)
+        } else if showingReceiveToken {
+            tokenReceivePanel
+        } else {
+            tokenDetailPanel(for: token)
+        }
+    }
+
+    @ViewBuilder
+    private func tokenDetailPanel(for token: TokenBalance) -> some View {
         VStack(spacing: 0) {
-            // Header with close button
+            // Header with back button
             HStack {
                 Button { withAnimation(.easeInOut(duration: 0.15)) { selectedToken = nil } } label: {
                     Image(systemName: "chevron.left")
                         .font(.caption)
                 }
                 .buttonStyle(.plain)
-
                 Text(token.token.symbol)
                     .font(.caption.bold())
-                Text(token.formattedBalance)
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-                if let usd = token.usdValue {
-                    Text("$\(usd, specifier: "%.2f")")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
                 Spacer()
             }
             .padding(.horizontal, 10)
@@ -117,15 +139,439 @@ struct TokensView: View {
 
             Divider()
 
-            // Chart fills remaining space
-            TradingViewChart(
-                symbol: token.token.symbol.tradingViewSymbol,
-                interval: "D",
-                theme: "dark"
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            ScrollView {
+                VStack(spacing: 12) {
+                    // Balance section
+                    HStack(spacing: 6) {
+                        Text("Balance")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(token.formattedBalance)
+                            .font(.title3.bold().monospacedDigit())
+                            .foregroundColor(AppColors.accent)
+                        Spacer()
+                        if let usd = token.usdValue {
+                            Text("$\(usd, specifier: "%.2f")")
+                                .font(.title3.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+
+                    // Send/Receive buttons
+                    HStack(spacing: 8) {
+                        Button { withAnimation(.easeInOut(duration: 0.15)) { showingSendToken = true } } label: {
+                            Label("Send", systemImage: "arrow.up")
+                                .font(.caption.weight(.semibold))
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(AccentButtonStyle())
+
+                        Button { withAnimation(.easeInOut(duration: 0.15)) { showingReceiveToken = true } } label: {
+                            Label("Receive", systemImage: "arrow.down")
+                                .font(.caption.weight(.semibold))
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(AccentButtonStyle())
+                    }
+                    .padding(.horizontal, 10)
+
+                    Divider()
+
+                    // Chart (1:1 square)
+                    GeometryReader { geo in
+                        TradingViewChart(
+                            symbol: token.token.symbol.tradingViewSymbol,
+                            interval: "D",
+                            theme: "dark"
+                        )
+                    }
+                    .aspectRatio(1, contentMode: .fit)
+
+                    Divider()
+
+                    // Token info
+                    VStack(spacing: 6) {
+                        HStack {
+                            Text("Contract")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            if token.token.address != "0x0000000000000000000000000000000000000000" {
+                                Text(token.token.address.prefix(8) + "..." + token.token.address.suffix(6))
+                                    .font(.caption2.monospaced())
+                            } else {
+                                Text("Native")
+                                    .font(.caption2)
+                            }
+                        }
+                        HStack {
+                            Text("Decimals")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text("\(token.token.decimals)")
+                                .font(.caption2.monospaced())
+                        }
+                        HStack {
+                            Text("Chain")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text(token.token.chainId == 1 ? "Ethereum" : "Chain \(token.token.chainId)")
+                                .font(.caption2)
+                        }
+                    }
+                    .padding(.horizontal, 10)
+
+                    Divider()
+
+                    // Recent activity placeholder
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Recent Activity")
+                            .font(.caption.bold())
+                        if let account = account {
+                            TokenActivityView(token: token.token, address: account.address)
+                        } else {
+                            Text("No account selected")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 10)
+                }
+                .padding(.vertical, 8)
+            }
         }
     }
+
+    // MARK: - Token Send Panel (Inline)
+
+    @ViewBuilder
+    private func tokenSendPanel(for token: TokenBalance) -> some View {
+        VStack(spacing: 0) {
+            // Header with back button
+            HStack {
+                Button { withAnimation(.easeInOut(duration: 0.15)) {
+                    showingSendToken = false
+                    tokenSendRecipient = ""
+                    tokenSendAmount = ""
+                    tokenSendError = nil
+                    tokenSendSuccess = nil
+                } } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+                Text("Send \(token.token.symbol)")
+                    .font(.caption.bold())
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+
+            Divider()
+
+            if let success = tokenSendSuccess {
+                VStack(spacing: 16) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 48))
+                        .foregroundStyle(.green)
+                    Text("Sent!")
+                        .font(.headline)
+                    Text(success)
+                        .font(.caption2.monospaced())
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .padding(8)
+                        .background(Color.secondary.opacity(0.1))
+                        .cornerRadius(6)
+                    Button("Done") {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            showingSendToken = false
+                            tokenSendRecipient = ""
+                            tokenSendAmount = ""
+                            tokenSendError = nil
+                            tokenSendSuccess = nil
+                        }
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding()
+            } else {
+                ScrollView {
+                    VStack(spacing: 12) {
+                        // Recipient
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Recipient")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            TextField("Address", text: $tokenSendRecipient)
+                                .textFieldStyle(.roundedBorder)
+                                .font(.caption.monospaced())
+                        }
+                        .padding(.horizontal, 10)
+
+                        // Amount
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Amount")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            HStack {
+                                TextField("0.0", text: $tokenSendAmount)
+                                    .textFieldStyle(.roundedBorder)
+                                    .font(.caption.monospaced())
+                                Text(token.token.symbol)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.horizontal, 10)
+
+                        // Balance
+                        HStack {
+                            Text("Balance")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text(token.formattedBalance)
+                                .font(.caption2.monospacedDigit())
+                                .foregroundColor(AppColors.accent)
+                            Text(token.token.symbol)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 10)
+
+                        if let error = tokenSendError {
+                            Text(error)
+                                .font(.caption2)
+                                .foregroundStyle(.red)
+                                .padding(.horizontal, 10)
+                        }
+
+                        // Send button
+                        Button {
+                            performTokenSend(token: token)
+                        } label: {
+                            if isTokenSending {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Label("Send", systemImage: "arrow.up")
+                                    .font(.caption.weight(.semibold))
+                            }
+                        }
+                        .buttonStyle(PrimaryButtonStyle())
+                        .disabled(tokenSendRecipient.isEmpty || tokenSendAmount.isEmpty || isTokenSending)
+                        .padding(.horizontal, 10)
+                    }
+                    .padding(.vertical, 8)
+                }
+            }
+        }
+    }
+
+    private func performTokenSend(token: TokenBalance) {
+        guard let account = account else { return }
+        isTokenSending = true
+        tokenSendError = nil
+
+        Task {
+            do {
+                let privateKey = try await walletViewModel.getPrivateKey(for: account)
+                let web3 = Web3Service()
+
+                // Check if native ETH or ERC-20
+                if token.token.address == "0x0000000000000000000000000000000000000000" {
+                    // Native ETH - convert to Wei
+                    guard let weiAmount = parseTokenAmount(tokenSendAmount, decimals: 18) else {
+                        await MainActor.run {
+                            isTokenSending = false
+                            tokenSendError = "Invalid amount"
+                        }
+                        return
+                    }
+
+                    let transaction = try await web3.buildTransaction(
+                        from: account.address,
+                        to: tokenSendRecipient,
+                        value: weiAmount
+                    )
+                    let txHash = try await web3.sendTransaction(transaction, privateKey: privateKey)
+
+                    await MainActor.run {
+                        isTokenSending = false
+                        tokenSendSuccess = txHash
+                    }
+                } else {
+                    // ERC-20 token transfer - convert decimal string to BigUInt
+                    guard let amount = parseTokenAmount(tokenSendAmount, decimals: token.token.decimals) else {
+                        await MainActor.run {
+                            isTokenSending = false
+                            tokenSendError = "Invalid amount"
+                        }
+                        return
+                    }
+
+                    let txHash = try await tokenService.transfer(
+                        token: token.token,
+                        to: tokenSendRecipient,
+                        amount: amount,
+                        from: account.address,
+                        privateKey: privateKey
+                    )
+                    await MainActor.run {
+                        isTokenSending = false
+                        tokenSendSuccess = txHash
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    isTokenSending = false
+                    tokenSendError = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    private func parseTokenAmount(_ amount: String, decimals: Int) -> BigUInt? {
+        let parts = amount.split(separator: ".")
+        let integerPart = String(parts.first ?? "0")
+        let fractionalPart = parts.count > 1 ? String(parts[1]) : ""
+
+        // Pad or truncate fractional part to match decimals
+        let paddedFractional = fractionalPart.padding(toLength: decimals, withPad: "0", startingAt: 0)
+        let fullString = integerPart + paddedFractional.prefix(decimals)
+
+        return BigUInt(fullString)
+    }
+
+    // MARK: - Token Receive Panel (Inline)
+
+    @ViewBuilder
+    private var tokenReceivePanel: some View {
+        VStack(spacing: 0) {
+            // Header with back button
+            HStack {
+                Button { withAnimation(.easeInOut(duration: 0.15)) { showingReceiveToken = false } } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+                Text("Receive")
+                    .font(.caption.bold())
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+
+            Divider()
+
+            ScrollView {
+                VStack(spacing: 16) {
+                    // QR Code
+                    if let account = account {
+                        tokenQRCodeImage(for: account.address)
+                            .interpolation(.none)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 140, height: 140)
+                            .padding(12)
+                            .background(Color.white)
+                            .cornerRadius(12)
+                    }
+
+                    // Address
+                    VStack(spacing: 4) {
+                        Text("Your Address")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+
+                        if let address = account?.address {
+                            Text(address)
+                                .font(.caption2.monospaced())
+                                .multilineTextAlignment(.center)
+                                .textSelection(.enabled)
+                                .padding(8)
+                                .background(Color.secondary.opacity(0.1))
+                                .cornerRadius(6)
+                        }
+                    }
+                    .padding(.horizontal, 10)
+
+                    // Copy button
+                    Button {
+                        copyTokenAddress()
+                    } label: {
+                        Label(tokenAddressCopied ? "Copied!" : "Copy Address", systemImage: tokenAddressCopied ? "checkmark" : "doc.on.doc")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+
+                    // Warning
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                            .font(.caption2)
+                        Text("Only send ETH or EVM tokens to this address")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(8)
+                    .background(Color.orange.opacity(0.1))
+                    .cornerRadius(6)
+                    .padding(.horizontal, 10)
+                }
+                .padding(.vertical, 12)
+            }
+        }
+    }
+
+    private func copyTokenAddress() {
+        guard let address = account?.address else { return }
+        #if os(macOS)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(address, forType: .string)
+        #else
+        UIPasteboard.general.string = address
+        #endif
+
+        withAnimation { tokenAddressCopied = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            withAnimation { tokenAddressCopied = false }
+        }
+    }
+
+    #if canImport(CoreImage)
+    private func tokenQRCodeImage(for address: String) -> Image {
+        let context = CIContext()
+        let filter = CIFilter.qrCodeGenerator()
+        filter.message = Data(address.utf8)
+        filter.correctionLevel = "M"
+
+        guard let ciImage = filter.outputImage else {
+            return Image(systemName: "qrcode")
+        }
+
+        let scale = 10.0
+        let transform = CGAffineTransform(scaleX: scale, y: scale)
+        let scaledImage = ciImage.transformed(by: transform)
+
+        guard let cgImage = context.createCGImage(scaledImage, from: scaledImage.extent) else {
+            return Image(systemName: "qrcode")
+        }
+
+        return Image(cgImage, scale: 1, label: Text("QR Code"))
+    }
+    #else
+    private func tokenQRCodeImage(for address: String) -> Image {
+        return Image(systemName: "qrcode")
+    }
+    #endif
 
     // MARK: - Token List
 
@@ -369,6 +815,83 @@ struct AddTokenSheet: View {
         } catch {
             await MainActor.run {
                 self.error = "Failed to load token: \(error.localizedDescription)"
+                self.isLoading = false
+            }
+        }
+    }
+}
+
+// MARK: - Token Activity View
+
+struct TokenActivityView: View {
+    let token: Token
+    let address: String
+
+    @State private var transactions: [TxHistoryEntry] = []
+    @State private var isLoading = true
+
+    var body: some View {
+        VStack(spacing: 4) {
+            if isLoading {
+                HStack {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Loading...")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            } else if transactions.isEmpty {
+                Text("No recent activity")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(transactions.prefix(3)) { tx in
+                    HStack {
+                        Image(systemName: tx.isOutgoing ? "arrow.up.circle" : "arrow.down.circle")
+                            .font(.caption)
+                            .foregroundStyle(tx.isOutgoing ? .red : .green)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(tx.isOutgoing ? "Sent" : "Received")
+                                .font(.caption2)
+                            Text(tx.shortTo)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Text(tx.formattedValue)
+                            .font(.caption2.monospacedDigit())
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+        }
+        .task {
+            await loadActivity()
+        }
+    }
+
+    private func loadActivity() async {
+        do {
+            let history = try await TransactionHistoryService.shared.getTransactionHistory(
+                for: address,
+                chainId: token.chainId,
+                pageSize: 10
+            )
+            // Filter for this token if it's not ETH
+            let filtered: [TxHistoryEntry]
+            if token.address == "0x0000000000000000000000000000000000000000" {
+                filtered = history.filter { $0.type == .send || $0.type == .receive }
+            } else {
+                filtered = history.filter {
+                    $0.tokenSymbol?.lowercased() == token.symbol.lowercased()
+                }
+            }
+            await MainActor.run {
+                self.transactions = Array(filtered.prefix(5))
+                self.isLoading = false
+            }
+        } catch {
+            await MainActor.run {
                 self.isLoading = false
             }
         }
