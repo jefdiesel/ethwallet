@@ -96,21 +96,42 @@ struct NFTsView: View {
 
             Divider()
 
-            // NFT Image fills remaining space
-            if let imageURL = nft.imageURL {
-                AsyncImage(url: imageURL) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image.resizable().aspectRatio(contentMode: .fit)
-                    case .failure:
-                        Color.secondary.opacity(0.2).overlay {
-                            Image(systemName: "photo").foregroundStyle(.secondary)
+            // NFT Image in scroll view
+            ScrollView {
+                if let imageURL = nft.imageURL {
+                    AsyncImage(url: imageURL) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(maxWidth: .infinity)
+                        case .failure:
+                            VStack {
+                                Image(systemName: "photo")
+                                    .font(.largeTitle)
+                                    .foregroundStyle(.secondary)
+                                Text("Failed to load")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 200)
+                        default:
+                            ProgressView()
+                                .frame(maxWidth: .infinity, minHeight: 200)
                         }
-                    default:
-                        Color.secondary.opacity(0.1).overlay { ProgressView() }
                     }
+                } else {
+                    VStack {
+                        Image(systemName: "photo")
+                            .font(.largeTitle)
+                            .foregroundStyle(.secondary)
+                        Text("No image")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 200)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
     }
