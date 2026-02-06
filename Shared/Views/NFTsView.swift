@@ -12,11 +12,27 @@ struct NFTsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Preview panel (expands when NFT selected)
             if let nft = selectedNFT {
+                // Expanded NFT preview (hides grid)
                 nftPreviewPanel(for: nft)
+            } else {
+                // Normal grid view
+                nftGridView
             }
+        }
+        .onAppear {
+            Task { await loadNFTs() }
+        }
+        .onChange(of: account?.address) { _, _ in
+            Task { await loadNFTs() }
+        }
+    }
 
+    // MARK: - NFT Grid View
+
+    @ViewBuilder
+    private var nftGridView: some View {
+        VStack(spacing: 0) {
             // Header
             HStack {
                 Text("NFTs")
@@ -27,13 +43,14 @@ struct NFTsView: View {
                     Image(systemName: "square.grid.2x2").tag(NFTGridLayout.medium)
                 }
                 .pickerStyle(.segmented)
-                .frame(maxWidth: 80)
+                .frame(maxWidth: 60)
+                .controlSize(.small)
                 Button { Task { await loadNFTs() } } label: {
                     Image(systemName: "arrow.clockwise").font(.caption)
                 }
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 6)
+            .padding(.vertical, 4)
 
             Divider()
 
@@ -48,21 +65,21 @@ struct NFTsView: View {
                 nftGrid
             }
         }
-        .onAppear {
-            Task { await loadNFTs() }
-        }
-        .onChange(of: account?.address) { _, _ in
-            Task { await loadNFTs() }
-        }
     }
 
-    // MARK: - NFT Preview Panel
+    // MARK: - NFT Preview Panel (Expanded)
 
     @ViewBuilder
     private func nftPreviewPanel(for nft: NFT) -> some View {
         VStack(spacing: 0) {
-            // Panel header
+            // Header with back button
             HStack {
+                Button { withAnimation(.easeInOut(duration: 0.15)) { selectedNFT = nil } } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+
                 Text(nft.name ?? "NFT")
                     .font(.caption.bold())
                     .lineLimit(1)
@@ -73,17 +90,13 @@ struct NFTsView: View {
                         .lineLimit(1)
                 }
                 Spacer()
-                Button { withAnimation(.easeInOut(duration: 0.2)) { selectedNFT = nil } } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 6)
+            .padding(.vertical, 4)
 
-            // NFT Image
+            Divider()
+
+            // NFT Image fills remaining space
             if let imageURL = nft.imageURL {
                 AsyncImage(url: imageURL) { phase in
                     switch phase {
@@ -97,12 +110,9 @@ struct NFTsView: View {
                         Color.secondary.opacity(0.1).overlay { ProgressView() }
                     }
                 }
-                .frame(height: 180)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-
-            Divider()
         }
-        .transition(.move(edge: .top).combined(with: .opacity))
     }
 
     // MARK: - NFT Grid

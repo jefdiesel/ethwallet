@@ -35,35 +35,12 @@ struct TokensView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Chart panel (expands when token selected)
             if let token = selectedToken {
+                // Expanded chart view (hides token list)
                 chartPanel(for: token)
-            }
-
-            // Header
-            HStack {
-                Text("Tokens")
-                    .font(.caption.weight(.semibold))
-                Spacer()
-                Button { showingAddToken = true } label: {
-                    Image(systemName: "plus").font(.caption)
-                }
-                Button { Task { await loadTokens() } } label: {
-                    Image(systemName: "arrow.clockwise").font(.caption)
-                }
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-
-            Divider()
-
-            // Content
-            if isLoading {
-                loadingView
-            } else if let error = error {
-                errorView(error)
             } else {
-                tokenList
+                // Normal token list view
+                tokenListView
             }
         }
         .onAppear {
@@ -77,13 +54,52 @@ struct TokensView: View {
         }
     }
 
-    // MARK: - Chart Panel
+    // MARK: - Token List View
+
+    @ViewBuilder
+    private var tokenListView: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Text("Tokens")
+                    .font(.caption.weight(.semibold))
+                Spacer()
+                Button { showingAddToken = true } label: {
+                    Image(systemName: "plus").font(.caption)
+                }
+                Button { Task { await loadTokens() } } label: {
+                    Image(systemName: "arrow.clockwise").font(.caption)
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+
+            Divider()
+
+            // Content
+            if isLoading {
+                loadingView
+            } else if let error = error {
+                errorView(error)
+            } else {
+                tokenList
+            }
+        }
+    }
+
+    // MARK: - Chart Panel (Expanded)
 
     @ViewBuilder
     private func chartPanel(for token: TokenBalance) -> some View {
         VStack(spacing: 0) {
-            // Panel header
+            // Header with close button
             HStack {
+                Button { withAnimation(.easeInOut(duration: 0.15)) { selectedToken = nil } } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+
                 Text(token.token.symbol)
                     .font(.caption.bold())
                 Text(token.formattedBalance)
@@ -95,27 +111,20 @@ struct TokensView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button { withAnimation(.easeInOut(duration: 0.2)) { selectedToken = nil } } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 6)
+            .padding(.vertical, 4)
 
-            // Chart
+            Divider()
+
+            // Chart fills remaining space
             TradingViewChart(
                 symbol: token.token.symbol.tradingViewSymbol,
                 interval: "D",
                 theme: "dark"
             )
-            .frame(height: 200)
-
-            Divider()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .transition(.move(edge: .top).combined(with: .opacity))
     }
 
     // MARK: - Token List

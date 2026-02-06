@@ -61,8 +61,8 @@ struct WalletView: View {
     @ViewBuilder
     private var walletContent: some View {
         VStack(spacing: 0) {
-            // Account & Network selectors
-            HStack(spacing: 8) {
+            // Compact header: account, balance, actions all in one row
+            HStack(spacing: 6) {
                 AccountSwitcher(
                     accounts: viewModel.wallet?.accounts ?? [],
                     selectedAccount: $viewModel.selectedAccount
@@ -70,33 +70,39 @@ struct WalletView: View {
 
                 Spacer()
 
+                Text(viewModel.balanceUSD)
+                    .font(.caption.bold().monospacedDigit())
+
+                Spacer()
+
+                Button { showingSend = true } label: {
+                    Image(systemName: "arrow.up")
+                }
+                .buttonStyle(IconButtonStyle())
+
+                Button { showingReceive = true } label: {
+                    Image(systemName: "arrow.down")
+                }
+                .buttonStyle(IconButtonStyle())
+
                 NetworkSwitcher(selectedNetwork: $viewModel.selectedNetwork)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-
-            Divider()
-
-            // Balance display
-            balanceSection
-                .padding(.vertical, 8)
-
-            // Action buttons
-            actionButtons
-                .padding(.bottom, 8)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
 
             // Tab picker
             Picker("", selection: $selectedTab) {
                 Text("Tokens").tag(WalletTab.tokens)
                 Text("NFTs").tag(WalletTab.nfts)
-                Text("Ethscriptions").tag(WalletTab.ethscriptions)
-                Text("Connect").tag(WalletTab.connect)
-                Text("Browser").tag(WalletTab.browser)
-                Text("History").tag(WalletTab.history)
+                Text("Etch").tag(WalletTab.ethscriptions)
+                Text("WC").tag(WalletTab.connect)
+                Text("Web").tag(WalletTab.browser)
+                Text("Tx").tag(WalletTab.history)
             }
             .pickerStyle(.segmented)
-            .padding(.horizontal, 10)
-            .padding(.bottom, 6)
+            .controlSize(.small)
+            .padding(.horizontal, 8)
+            .padding(.bottom, 4)
 
             Divider()
 
