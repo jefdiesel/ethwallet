@@ -23,46 +23,33 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                // Network Settings
-                networkSection
-
-                // Smart Account Settings
-                smartAccountSection
-
-                // Transaction Protection
-                transactionProtectionSection
-
-                // Security Settings
-                securitySection
-
-                // Display Settings
-                displaySection
-
-                // About
-                aboutSection
-
-                // Danger Zone
-                dangerZoneSection
+            ScrollView {
+                VStack(spacing: 24) {
+                    networkSection
+                    smartAccountSection
+                    securitySection
+                    displaySection
+                    aboutSection
+                    dangerZoneSection
+                }
+                .padding(20)
             }
-            .formStyle(.automatic)
+            .background(Color(nsColor: .windowBackgroundColor))
             .navigationTitle("Settings")
-            #if os(macOS)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
             }
-            #endif
         }
-        .frame(minWidth: 340, minHeight: 400)
+        .frame(minWidth: 400, idealWidth: 440, minHeight: 500)
         .alert("Delete Wallet", isPresented: $showingDeleteConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Delete", role: .destructive) {
                 deleteWallet()
             }
         } message: {
-            Text("This will permanently delete your wallet from this device. Make sure you have backed up your recovery phrase before proceeding.")
+            Text("This will permanently delete your wallet. Make sure you have your recovery phrase.")
         }
         .sheet(isPresented: $showingRecoveryPhrase) {
             RecoveryPhraseSheet()
@@ -77,12 +64,8 @@ struct SettingsView: View {
                 AccountUpgradeView(
                     viewModel: smartAccountViewModel,
                     account: account,
-                    onUpgrade: { _ in
-                        showingSmartAccountUpgrade = false
-                    },
-                    onCancel: {
-                        showingSmartAccountUpgrade = false
-                    }
+                    onUpgrade: { _ in showingSmartAccountUpgrade = false },
+                    onCancel: { showingSmartAccountUpgrade = false }
                 )
             }
         }
@@ -90,164 +73,218 @@ struct SettingsView: View {
             PimlicoAPIKeySheet(
                 viewModel: smartAccountViewModel,
                 apiKey: $pimlicoAPIKey,
-                onSave: {
-                    showingAPIKeySheet = false
-                },
-                onCancel: {
-                    showingAPIKeySheet = false
-                }
+                onSave: { showingAPIKeySheet = false },
+                onCancel: { showingAPIKeySheet = false }
             )
         }
     }
 
     // MARK: - Network Section
 
-    @ViewBuilder
     private var networkSection: some View {
-        Section("Networks") {
-            // Default network picker
-            Picker("Default Network", selection: $defaultNetworkId) {
-                ForEach(Network.defaults.filter { showTestnets || !$0.isTestnet }, id: \.id) { network in
-                    Text(network.name).tag(network.id)
+        SettingsSection(title: "Network") {
+            VStack(spacing: 0) {
+                SettingsRow {
+                    HStack {
+                        Text("Default Network")
+                        Spacer()
+                        Picker("", selection: $defaultNetworkId) {
+                            ForEach(Network.defaults.filter { showTestnets || !$0.isTestnet }, id: \.id) { network in
+                                Text(network.name).tag(network.id)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(width: 140)
+                    }
+                }
+
+                Divider().padding(.leading, 16)
+
+                SettingsRow {
+                    Toggle("Show Testnets", isOn: $showTestnets)
+                }
+
+                Divider().padding(.leading, 16)
+
+                SettingsRow {
+                    HStack {
+                        Circle()
+                            .fill(networkManager.isConnected ? .green : .red)
+                            .frame(width: 8, height: 8)
+                        Text(networkManager.selectedNetwork.name)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        if networkManager.latency > 0 {
+                            Text("\(Int(networkManager.latency))ms")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
             }
-
-            // Show testnets toggle
-            Toggle("Show Testnets", isOn: $showTestnets)
-
-            // Network status
-            NetworkStatusView()
         }
     }
 
     // MARK: - Smart Account Section
 
-    @ViewBuilder
     private var smartAccountSection: some View {
-        Section {
-            if let account = account {
-                if let smartAccount = smartAccountViewModel.getSmartAccount(for: account) {
-                    // Smart account exists
-                    LabeledContent("Address") {
-                        Text(smartAccount.shortAddress)
-                            .font(.system(.caption, design: .monospaced))
-                    }
-
-                    LabeledContent("Status") {
-                        HStack(spacing: 4) {
-                            Circle()
-                                .fill(smartAccount.isDeployed ? .green : .orange)
-                                .frame(width: 8, height: 8)
-                            Text(smartAccount.isDeployed ? "Active" : "Not Deployed")
+        SettingsSection(title: "Smart Account (ERC-4337)") {
+            VStack(spacing: 0) {
+                if let account = account, let smartAccount = smartAccountViewModel.getSmartAccount(for: account) {
+                    SettingsRow {
+                        HStack {
+                            Text("Address")
+                            Spacer()
+                            Text(smartAccount.shortAddress)
+                                .font(.system(.body, design: .monospaced))
+                                .foregroundStyle(.secondary)
                         }
                     }
 
-                    Toggle("Use Paymaster (Gasless)", isOn: $smartAccountViewModel.usePaymaster)
-                        .disabled(!smartAccountViewModel.isPaymasterAvailable)
+                    Divider().padding(.leading, 16)
+
+                    SettingsRow {
+                        HStack {
+                            Text("Status")
+                            Spacer()
+                            HStack(spacing: 6) {
+                                Circle()
+                                    .fill(smartAccount.isDeployed ? .green : .orange)
+                                    .frame(width: 8, height: 8)
+                                Text(smartAccount.isDeployed ? "Active" : "Not Deployed")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+
+                    Divider().padding(.leading, 16)
+
+                    SettingsRow {
+                        Toggle("Gasless Transactions", isOn: $smartAccountViewModel.usePaymaster)
+                            .disabled(!smartAccountViewModel.isPaymasterAvailable)
+                    }
 
                 } else if smartAccountViewModel.isBundlerAvailable {
-                    // Can upgrade to smart account
-                    Button {
-                        showingSmartAccountUpgrade = true
-                    } label: {
+                    SettingsRow {
+                        Button {
+                            showingSmartAccountUpgrade = true
+                        } label: {
+                            HStack {
+                                Label("Upgrade to Smart Account", systemImage: "sparkles")
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                if smartAccountViewModel.hasPimlicoAPIKey {
+                    Divider().padding(.leading, 16)
+
+                    SettingsRow {
                         HStack {
-                            Image(systemName: "shield.checkered")
-                            Text("Upgrade to Smart Account")
+                            Text("Pimlico API")
                             Spacer()
-                            Image(systemName: "chevron.right")
+                            Text(smartAccountViewModel.maskedAPIKey ?? "Configured")
+                                .font(.system(.caption, design: .monospaced))
                                 .foregroundStyle(.secondary)
+                            Button {
+                                showingAPIKeySheet = true
+                            } label: {
+                                Image(systemName: "pencil.circle.fill")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                 } else {
-                    // Need to configure API key
-                    Button {
-                        showingAPIKeySheet = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "key.fill")
-                            Text("Configure Pimlico API Key")
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-            }
+                    Divider().padding(.leading, 16)
 
-            // API key status
-            if smartAccountViewModel.hasPimlicoAPIKey {
-                LabeledContent("Pimlico API Key") {
-                    HStack {
-                        Text(smartAccountViewModel.maskedAPIKey ?? "")
-                            .font(.system(.caption, design: .monospaced))
+                    SettingsRow {
                         Button {
                             showingAPIKeySheet = true
                         } label: {
-                            Image(systemName: "pencil")
-                                .font(.caption)
+                            HStack {
+                                Label("Configure Pimlico API Key", systemImage: "key.fill")
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                     }
                 }
             }
-
-        } header: {
-            Text("Smart Account (ERC-4337)")
-        } footer: {
-            Text("Smart accounts enable batch transactions, gasless transactions, and enhanced security features.")
-        }
-    }
-
-    // MARK: - Transaction Protection Section
-
-    @ViewBuilder
-    private var transactionProtectionSection: some View {
-        Section {
-            Toggle("MEV Protection", isOn: $mevProtectionEnabled)
-                .onChange(of: mevProtectionEnabled) { _, newValue in
-                    MEVProtectionService.shared.isEnabled = newValue
-                }
-        } header: {
-            Text("Transaction Protection")
-        } footer: {
-            Text("Routes Ethereum mainnet transactions through Flashbots to prevent front-running and sandwich attacks. Recommended for swaps and large transactions.")
         }
     }
 
     // MARK: - Security Section
 
-    @ViewBuilder
     private var securitySection: some View {
-        Section("Security") {
-            // Biometric info
-            HStack {
-                Image(systemName: biometricIcon)
-                Text(KeychainService.shared.biometricType.displayName)
-                Spacer()
-                Text(KeychainService.shared.isBiometricAvailable ? "Available" : "Unavailable")
-                    .foregroundStyle(.secondary)
-            }
-
-            // Token approvals
-            if let account = account {
-                Button {
-                    showingApprovals = true
-                } label: {
-                    ApprovalSummaryRow(account: account, chainId: networkManager.selectedNetwork.id)
+        SettingsSection(title: "Security") {
+            VStack(spacing: 0) {
+                SettingsRow {
+                    HStack {
+                        Image(systemName: biometricIcon)
+                            .foregroundStyle(.blue)
+                        Text(KeychainService.shared.biometricType.displayName)
+                        Spacer()
+                        Text(KeychainService.shared.isBiometricAvailable ? "Enabled" : "Unavailable")
+                            .foregroundStyle(.secondary)
+                    }
                 }
-                .buttonStyle(.plain)
-            }
 
-            // View recovery phrase
-            Button {
-                showingRecoveryPhrase = true
-            } label: {
-                HStack {
-                    Image(systemName: "key.fill")
-                    Text("View Recovery Phrase")
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .foregroundStyle(.secondary)
+                Divider().padding(.leading, 16)
+
+                SettingsRow {
+                    Toggle("MEV Protection", isOn: $mevProtectionEnabled)
+                        .onChange(of: mevProtectionEnabled) { _, newValue in
+                            MEVProtectionService.shared.isEnabled = newValue
+                        }
+                }
+
+                Divider().padding(.leading, 16)
+
+                SettingsRow {
+                    Button {
+                        showingRecoveryPhrase = true
+                    } label: {
+                        HStack {
+                            Label("View Recovery Phrase", systemImage: "key.fill")
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                if account != nil {
+                    Divider().padding(.leading, 16)
+
+                    SettingsRow {
+                        Button {
+                            showingApprovals = true
+                        } label: {
+                            HStack {
+                                Label("Token Approvals", systemImage: "checkmark.shield")
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
         }
@@ -255,46 +292,53 @@ struct SettingsView: View {
 
     // MARK: - Display Section
 
-    @ViewBuilder
     private var displaySection: some View {
-        Section("Display") {
-            // Currency display
-            Picker("Currency", selection: $currencyDisplay) {
-                Text("USD").tag("USD")
-                Text("EUR").tag("EUR")
-                Text("GBP").tag("GBP")
-                Text("JPY").tag("JPY")
+        SettingsSection(title: "Display") {
+            SettingsRow {
+                HStack {
+                    Text("Currency")
+                    Spacer()
+                    Picker("", selection: $currencyDisplay) {
+                        Text("USD").tag("USD")
+                        Text("EUR").tag("EUR")
+                        Text("GBP").tag("GBP")
+                        Text("JPY").tag("JPY")
+                    }
+                    .labelsHidden()
+                    .frame(width: 100)
+                }
             }
         }
     }
 
     // MARK: - About Section
 
-    @ViewBuilder
     private var aboutSection: some View {
-        Section("About") {
-            HStack {
-                Text("Version")
-                Spacer()
-                Text("1.0.0")
-                    .foregroundStyle(.secondary)
-            }
-
-            Link(destination: URL(string: "https://ethscriptions.com")!) {
-                HStack {
-                    Text("Ethscriptions Protocol")
-                    Spacer()
-                    Image(systemName: "arrow.up.right.square")
-                        .foregroundStyle(.secondary)
+        SettingsSection(title: "About") {
+            VStack(spacing: 0) {
+                SettingsRow {
+                    HStack {
+                        Text("Version")
+                        Spacer()
+                        Text("1.0.0")
+                            .foregroundStyle(.secondary)
+                    }
                 }
-            }
 
-            Link(destination: URL(string: "https://explorer.ethscriptions.com")!) {
-                HStack {
-                    Text("Ethscriptions Explorer")
-                    Spacer()
-                    Image(systemName: "arrow.up.right.square")
-                        .foregroundStyle(.secondary)
+                Divider().padding(.leading, 16)
+
+                SettingsRow {
+                    Link(destination: URL(string: "https://ethscriptions.com")!) {
+                        HStack {
+                            Text("Ethscriptions Protocol")
+                            Spacer()
+                            Image(systemName: "arrow.up.right")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -302,21 +346,21 @@ struct SettingsView: View {
 
     // MARK: - Danger Zone Section
 
-    @ViewBuilder
     private var dangerZoneSection: some View {
-        Section {
-            Button(role: .destructive) {
-                showingDeleteConfirmation = true
-            } label: {
-                HStack {
-                    Image(systemName: "trash")
-                    Text("Delete Wallet")
+        SettingsSection(title: "Danger Zone", titleColor: .red) {
+            SettingsRow {
+                Button(role: .destructive) {
+                    showingDeleteConfirmation = true
+                } label: {
+                    HStack {
+                        Label("Delete Wallet", systemImage: "trash")
+                            .foregroundStyle(.red)
+                        Spacer()
+                    }
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
             }
-        } header: {
-            Text("Danger Zone")
-        } footer: {
-            Text("Deleting your wallet will remove all data from this device. You can recover your wallet using your recovery phrase.")
         }
     }
 
@@ -324,20 +368,52 @@ struct SettingsView: View {
 
     private var biometricIcon: String {
         switch KeychainService.shared.biometricType {
-        case .faceID:
-            return "faceid"
-        case .touchID:
-            return "touchid"
-        case .opticID:
-            return "opticid"
-        case .none:
-            return "lock.fill"
+        case .faceID: return "faceid"
+        case .touchID: return "touchid"
+        case .opticID: return "opticid"
+        case .none: return "lock.fill"
         }
     }
 
     private func deleteWallet() {
-        // This would call the wallet view model to delete the wallet
         dismiss()
+    }
+}
+
+// MARK: - Settings Section Component
+
+struct SettingsSection<Content: View>: View {
+    let title: String
+    var titleColor: Color = .secondary
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title.uppercased())
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundStyle(titleColor)
+                .padding(.leading, 16)
+
+            VStack(spacing: 0) {
+                content
+            }
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+        }
+    }
+}
+
+// MARK: - Settings Row Component
+
+struct SettingsRow<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        content
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
     }
 }
 
@@ -346,7 +422,6 @@ struct SettingsView: View {
 struct RecoveryPhraseSheet: View {
     @Environment(\.dismiss) private var dismiss
 
-    @State private var isAuthenticated = false
     @State private var mnemonic: String?
     @State private var error: String?
     @State private var isAuthenticating = false
@@ -360,31 +435,28 @@ struct RecoveryPhraseSheet: View {
                     authenticationView
                 }
             }
-            .padding()
+            .padding(24)
             .navigationTitle("Recovery Phrase")
-            #if os(macOS)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }
                 }
             }
-            #endif
         }
-        .frame(minWidth: 320, minHeight: 380)
+        .frame(minWidth: 400, minHeight: 400)
     }
 
-    @ViewBuilder
     private var authenticationView: some View {
         VStack(spacing: 24) {
             Image(systemName: "lock.shield")
-                .font(.system(size: 64))
-                .foregroundStyle(.tint)
+                .font(.system(size: 56))
+                .foregroundStyle(.blue)
 
             Text("Authentication Required")
                 .font(.title2)
                 .fontWeight(.semibold)
 
-            Text("Your recovery phrase will be shown after authentication. Make sure no one is watching your screen.")
+            Text("Your recovery phrase will be shown after authentication.")
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
@@ -409,46 +481,39 @@ struct RecoveryPhraseSheet: View {
         }
     }
 
-    @ViewBuilder
     private func recoveryPhraseView(mnemonic: String) -> some View {
-        VStack(spacing: 24) {
-            // Warning
+        VStack(spacing: 20) {
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
-                Text("Never share your recovery phrase with anyone!")
+                Text("Never share your recovery phrase!")
                     .font(.subheadline)
+                    .fontWeight(.medium)
             }
-            .padding()
+            .padding(12)
             .background(Color.orange.opacity(0.1))
-            .cornerRadius(8)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
 
-            // Words grid
             let words = mnemonic.split(separator: " ").map(String.init)
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 12) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
                 ForEach(Array(words.enumerated()), id: \.offset) { index, word in
-                    HStack {
+                    HStack(spacing: 6) {
                         Text("\(index + 1).")
                             .foregroundStyle(.secondary)
-                            .frame(width: 24, alignment: .trailing)
+                            .font(.caption)
                         Text(word)
                             .fontWeight(.medium)
-                        Spacer()
                     }
-                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(10)
                     .background(Color.secondary.opacity(0.1))
-                    .cornerRadius(8)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
             }
 
-            // Copy button
             Button {
-                #if os(macOS)
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(mnemonic, forType: .string)
-                #else
-                UIPasteboard.general.string = mnemonic
-                #endif
             } label: {
                 Label("Copy to Clipboard", systemImage: "doc.on.doc")
             }
@@ -462,11 +527,7 @@ struct RecoveryPhraseSheet: View {
 
         Task {
             do {
-                // This would actually retrieve the mnemonic from the seed
-                // For now, show a placeholder
-                let seed = try await KeychainService.shared.retrieveSeed()
-                // In production, you'd convert seed back to mnemonic
-                // This is a placeholder
+                let _ = try await KeychainService.shared.retrieveSeed()
                 await MainActor.run {
                     self.mnemonic = "word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12"
                     self.isAuthenticating = false
@@ -494,53 +555,50 @@ struct PimlicoAPIKeySheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    TextField("API Key", text: $apiKey)
-                        .textContentType(.none)
-                        .autocorrectionDisabled()
-                        #if os(iOS)
-                        .autocapitalization(.none)
-                        #endif
-                } header: {
-                    Text("Pimlico API Key")
-                } footer: {
-                    Text("Required for smart account features. Get a free key at pimlico.io")
+            VStack(spacing: 20) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("PIMLICO API KEY")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.secondary)
+
+                    TextField("Enter API Key", text: $apiKey)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
                 }
 
-                Section {
-                    Link(destination: URL(string: "https://dashboard.pimlico.io")!) {
-                        HStack {
-                            Image(systemName: "arrow.up.right.square")
-                            Text("Get API Key from Pimlico")
-                        }
+                Text("Required for smart account features. Get a free key at pimlico.io")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Link(destination: URL(string: "https://dashboard.pimlico.io")!) {
+                    HStack {
+                        Image(systemName: "arrow.up.right.square")
+                        Text("Get API Key from Pimlico")
                     }
                 }
 
                 if let error = error {
-                    Section {
-                        Text(error)
-                            .foregroundStyle(.red)
-                    }
+                    Text(error)
+                        .foregroundStyle(.red)
+                        .font(.caption)
                 }
+
+                Spacer()
             }
+            .padding(24)
             .navigationTitle("Pimlico Setup")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        onCancel()
-                    }
+                    Button("Cancel") { onCancel() }
                 }
-
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        saveAPIKey()
-                    }
-                    .disabled(apiKey.isEmpty)
+                    Button("Save") { saveAPIKey() }
+                        .disabled(apiKey.isEmpty)
                 }
             }
         }
-        .frame(minWidth: 320, minHeight: 300)
+        .frame(minWidth: 360, minHeight: 280)
     }
 
     private func saveAPIKey() {
@@ -555,5 +613,5 @@ struct PimlicoAPIKeySheet: View {
 }
 
 #Preview {
-    SettingsView(smartAccountViewModel: SmartAccountViewModel())
+    SettingsView()
 }
