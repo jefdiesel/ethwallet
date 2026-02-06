@@ -17,16 +17,19 @@ final class Web3Service {
 
     /// Switch to a different network
     func switchNetwork(_ network: Network) {
+        print("[Web3Service] Switching to \(network.name) (chainId: \(network.id), rpc: \(network.rpcURL))")
         self.currentNetwork = network
         setupWeb3(for: network)
     }
 
     private func setupWeb3(for network: Network) {
-        guard let provider = try? Web3HttpProvider(url: network.rpcURL, network: .Custom(networkID: BigUInt(network.id))) else {
-            print("Failed to create provider for \(network.name)")
-            return
+        do {
+            let provider = try Web3HttpProvider(url: network.rpcURL, network: .Custom(networkID: BigUInt(network.id)))
+            self.web3 = Web3(provider: provider)
+            print("[Web3Service] Successfully connected to \(network.name)")
+        } catch {
+            print("[Web3Service] Failed to create provider for \(network.name): \(error)")
         }
-        self.web3 = Web3(provider: provider)
     }
 
     // MARK: - Wallet Operations
@@ -109,14 +112,18 @@ final class Web3Service {
     /// Get ETH balance for an address
     func getBalance(for address: String) async throws -> BigUInt {
         guard let web3 = web3 else {
+            print("[Web3Service] getBalance failed: not initialized")
             throw Web3ServiceError.notInitialized
         }
 
         guard let ethAddress = EthereumAddress(address) else {
+            print("[Web3Service] getBalance failed: invalid address \(address)")
             throw Web3ServiceError.invalidAddress
         }
 
+        print("[Web3Service] Fetching balance for \(address) on \(currentNetwork.name)...")
         let balance = try await web3.eth.getBalance(for: ethAddress)
+        print("[Web3Service] Balance on \(currentNetwork.name): \(balance)")
         return balance
     }
 

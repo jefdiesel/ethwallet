@@ -34,7 +34,7 @@ struct Network: Identifiable, Codable, Hashable {
     static let sepolia = Network(
         id: 11155111,
         name: "Sepolia",
-        rpcURL: URL(string: "https://rpc.sepolia.org")!,
+        rpcURL: URL(string: "https://ethereum-sepolia-rpc.publicnode.com")!,
         currencySymbol: "ETH",
         explorerURL: URL(string: "https://sepolia.etherscan.io"),
         isTestnet: true
