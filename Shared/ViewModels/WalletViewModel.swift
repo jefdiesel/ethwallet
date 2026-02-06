@@ -33,6 +33,7 @@ final class WalletViewModel: ObservableObject {
     @Published var selectedNetwork: Network = .ethereum {
         didSet {
             networkManager.selectNetwork(selectedNetwork)
+            web3Service.switchNetwork(selectedNetwork)
             Task { await refreshBalance() }
         }
     }
