@@ -79,16 +79,8 @@ struct NFTsView: View {
                         .font(.caption)
                 }
                 .buttonStyle(.plain)
-
-                Text(nft.name ?? "NFT")
+                Text(nft.collectionName ?? "NFT")
                     .font(.caption.bold())
-                    .lineLimit(1)
-                if let collection = nft.collectionName {
-                    Text(collection)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
                 Spacer()
             }
             .padding(.horizontal, 10)
@@ -96,44 +88,147 @@ struct NFTsView: View {
 
             Divider()
 
-            // NFT Image in scroll view
             ScrollView {
-                if let imageURL = nft.imageURL {
-                    AsyncImage(url: imageURL) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(maxWidth: .infinity)
-                        case .failure:
-                            VStack {
-                                Image(systemName: "photo")
-                                    .font(.largeTitle)
-                                    .foregroundStyle(.secondary)
-                                Text("Failed to load")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                VStack(spacing: 12) {
+                    // Image
+                    if let imageURL = nft.imageURL {
+                        AsyncImage(url: imageURL) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .cornerRadius(8)
+                            case .failure:
+                                nftPlaceholder(text: "Failed to load")
+                            default:
+                                ProgressView()
+                                    .frame(height: 150)
                             }
-                            .frame(maxWidth: .infinity, minHeight: 200)
-                        default:
-                            ProgressView()
-                                .frame(maxWidth: .infinity, minHeight: 200)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 180)
+                    } else if let imageData = nft.imageData, let nsImage = NSImage(data: imageData) {
+                        Image(nsImage: nsImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .cornerRadius(8)
+                            .frame(height: 180)
+                    } else {
+                        nftPlaceholder(text: "No image")
+                    }
+
+                    // Name & Token ID
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(nft.displayName)
+                            .font(.caption.bold())
+                        Text("#\(nft.shortTokenId)")
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    // Description
+                    if let desc = nft.description, !desc.isEmpty {
+                        Text(desc)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    Divider()
+
+                    // Contract Info
+                    VStack(spacing: 4) {
+                        infoRow("Contract", nft.contractAddress.prefix(8) + "..." + nft.contractAddress.suffix(6))
+                        infoRow("Standard", nft.standard.rawValue)
+                        infoRow("Chain", nft.chainId == 1 ? "Ethereum" : "Chain \(nft.chainId)")
+                        if nft.balance > 1 {
+                            infoRow("Owned", "\(nft.balance)")
                         }
                     }
-                } else {
-                    VStack {
-                        Image(systemName: "photo")
-                            .font(.largeTitle)
-                            .foregroundStyle(.secondary)
-                        Text("No image")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+
+                    // Attributes
+                    if let attrs = nft.attributes, !attrs.isEmpty {
+                        Divider()
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Traits")
+                                .font(.caption2.bold())
+                                .foregroundStyle(.secondary)
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 4) {
+                                ForEach(attrs.prefix(6), id: \.traitType) { attr in
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(attr.traitType)
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                        Text(attr.value)
+                                            .font(.caption2.bold())
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(4)
+                                    .background(Color.secondary.opacity(0.1))
+                                    .cornerRadius(4)
+                                }
+                            }
+                        }
                     }
-                    .frame(maxWidth: .infinity, minHeight: 200)
+
+                    Divider()
+
+                    // Action buttons
+                    HStack(spacing: 8) {
+                        Button {
+                            // TODO: Transfer
+                        } label: {
+                            Label("Transfer", systemImage: "arrow.right")
+                                .font(.caption)
+                        }
+                        .buttonStyle(PrimaryButtonStyle())
+
+                        if let url = openSeaURL(for: nft) {
+                            Link(destination: url) {
+                                Label("OpenSea", systemImage: "safari")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(SecondaryButtonStyle())
+                        }
+                    }
                 }
+                .padding(10)
             }
         }
+    }
+
+    @ViewBuilder
+    private func nftPlaceholder(text: String) -> some View {
+        VStack {
+            Image(systemName: "photo")
+                .font(.title)
+                .foregroundStyle(.secondary)
+            Text(text)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 150)
+        .background(Color.secondary.opacity(0.1))
+        .cornerRadius(8)
+    }
+
+    private func infoRow(_ label: String, _ value: String) -> some View {
+        HStack {
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text(value)
+                .font(.caption2.monospaced())
+        }
+    }
+
+    private func openSeaURL(for nft: NFT) -> URL? {
+        let base = nft.chainId == 1 ? "https://opensea.io/assets/ethereum" : "https://opensea.io/assets/matic"
+        return URL(string: "\(base)/\(nft.contractAddress)/\(nft.tokenId)")
     }
 
     // MARK: - NFT Grid

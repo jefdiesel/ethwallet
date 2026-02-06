@@ -84,6 +84,22 @@ struct IconButtonStyle: ButtonStyle {
     }
 }
 
+// MARK: - Accent Button Style (Lime colored)
+
+struct AccentButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .padding(.horizontal, AppSpacing.sm)
+            .padding(.vertical, AppSpacing.xs + 2)
+            .background(isEnabled ? AppColors.accent : Color.gray.opacity(0.3))
+            .foregroundColor(.black)
+            .cornerRadius(5)
+            .opacity(configuration.isPressed ? 0.8 : 1.0)
+    }
+}
+
 // MARK: - Button Style Extensions
 
 extension ButtonStyle where Self == PrimaryButtonStyle {

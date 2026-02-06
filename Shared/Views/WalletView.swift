@@ -61,34 +61,45 @@ struct WalletView: View {
     @ViewBuilder
     private var walletContent: some View {
         VStack(spacing: 0) {
-            // Compact header: account, balance, actions all in one row
+            // Header row 1: Account and Network
             HStack(spacing: 6) {
                 AccountSwitcher(
                     accounts: viewModel.wallet?.accounts ?? [],
                     selectedAccount: $viewModel.selectedAccount
                 )
-
                 Spacer()
+                NetworkSwitcher(selectedNetwork: $viewModel.selectedNetwork)
+            }
+            .padding(.horizontal, 8)
+            .padding(.top, 4)
 
-                Text(viewModel.balanceUSD)
-                    .font(.caption.bold().monospacedDigit())
+            // Header row 2: Total Holdings + Actions
+            HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Total Holdings")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text(viewModel.balanceUSD)
+                        .font(.title2.bold().monospacedDigit())
+                        .foregroundColor(AppColors.accent)
+                }
 
                 Spacer()
 
                 Button { showingSend = true } label: {
-                    Image(systemName: "arrow.up")
+                    Label("Send", systemImage: "arrow.up")
+                        .font(.caption.weight(.semibold))
                 }
-                .buttonStyle(IconButtonStyle())
+                .buttonStyle(AccentButtonStyle())
 
                 Button { showingReceive = true } label: {
-                    Image(systemName: "arrow.down")
+                    Label("Receive", systemImage: "arrow.down")
+                        .font(.caption.weight(.semibold))
                 }
-                .buttonStyle(IconButtonStyle())
-
-                NetworkSwitcher(selectedNetwork: $viewModel.selectedNetwork)
+                .buttonStyle(AccentButtonStyle())
             }
             .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .padding(.vertical, 6)
 
             // Tab picker
             Picker("", selection: $selectedTab) {
