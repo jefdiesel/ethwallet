@@ -86,10 +86,10 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		F0000002AAAAAAAA00000000 /* EthWallet.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = EthWallet.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F0000002AAAAAAAA00000000 /* PixelWallet.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PixelWallet.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F0000002AAAAAAAA00000001 /* macOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = macOSApp.swift; sourceTree = "<group>"; };
 		F0000002AAAAAAAA00000002 /* MacMenuCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacMenuCommands.swift; sourceTree = "<group>"; };
-		F0000002AAAAAAAA00000099 /* EthWallet.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = EthWallet.entitlements; sourceTree = "<group>"; };
+		F0000002AAAAAAAA00000099 /* PixelWallet.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PixelWallet.entitlements; sourceTree = "<group>"; };
 		F0000002BBBBBBBB00000001 /* Account.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Account.swift; sourceTree = "<group>"; };
 		F0000002BBBBBBBB00000002 /* Collection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Collection.swift; sourceTree = "<group>"; };
 		F0000002BBBBBBBB00000003 /* Ethscription.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Ethscription.swift; sourceTree = "<group>"; };
@@ -182,7 +182,7 @@
 			children = (
 				F0000002AAAAAAAA00000001 /* macOSApp.swift */,
 				F0000002AAAAAAAA00000002 /* MacMenuCommands.swift */,
-				F0000002AAAAAAAA00000099 /* EthWallet.entitlements */,
+				F0000002AAAAAAAA00000099 /* PixelWallet.entitlements */,
 			);
 			path = macOS;
 			sourceTree = "<group>";
@@ -212,7 +212,7 @@
 		F0000005000000000000PRODS /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				F0000002AAAAAAAA00000000 /* EthWallet.app */,
+				F0000002AAAAAAAA00000000 /* PixelWallet.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -342,9 +342,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		F0000006000000000000TARG /* EthWallet */ = {
+		F0000006000000000000TARG /* PixelWallet */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = F0000008000000000000CFGL /* Build configuration list for PBXNativeTarget "EthWallet" */;
+			buildConfigurationList = F0000008000000000000CFGL /* Build configuration list for PBXNativeTarget "PixelWallet" */;
 			buildPhases = (
 				F0000006000000000000SRCS /* Sources */,
 				F000000400000000FFFFFFFF /* Frameworks */,
@@ -353,13 +353,13 @@
 			);
 			dependencies = (
 			);
-			name = EthWallet;
+			name = PixelWallet;
 			packageProductDependencies = (
 				F0000003111111110000001A /* Web3Wallet */,
 				F0000003111111110000000F /* web3swift */,
 			);
-			productName = EthWallet;
-			productReference = F0000002AAAAAAAA00000000 /* EthWallet.app */;
+			productName = PixelWallet;
+			productReference = F0000002AAAAAAAA00000000 /* PixelWallet.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -377,7 +377,7 @@
 					};
 				};
 			};
-			buildConfigurationList = F0000008000000000000CFGP /* Build configuration list for PBXProject "EthWallet" */;
+			buildConfigurationList = F0000008000000000000CFGP /* Build configuration list for PBXProject "PixelWallet" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -394,7 +394,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				F0000006000000000000TARG /* EthWallet */,
+				F0000006000000000000TARG /* PixelWallet */,
 			);
 		};
 /* End PBXProject section */
@@ -548,7 +548,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = macOS/EthWallet.entitlements;
+				CODE_SIGN_ENTITLEMENTS = macOS/PixelWallet.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -630,7 +630,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = macOS/EthWallet.entitlements;
+				CODE_SIGN_ENTITLEMENTS = macOS/PixelWallet.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -657,7 +657,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		F0000008000000000000CFGL /* Build configuration list for PBXNativeTarget "EthWallet" */ = {
+		F0000008000000000000CFGL /* Build configuration list for PBXNativeTarget "PixelWallet" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				F0000009000000000000DBGT /* Debug */,
@@ -666,7 +666,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		F0000008000000000000CFGP /* Build configuration list for PBXProject "EthWallet" */ = {
+		F0000008000000000000CFGP /* Build configuration list for PBXProject "PixelWallet" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				F0000009000000000000DBGP /* Debug */,

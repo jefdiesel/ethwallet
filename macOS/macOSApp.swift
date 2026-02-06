@@ -7,7 +7,7 @@ extension Request: @retroactive Identifiable {}
 
 /// Main entry point for the macOS application
 @main
-struct EthWalletApp: App {
+struct PixelWalletApp: App {
     @StateObject private var walletViewModel = WalletViewModel()
     @StateObject private var networkManager = NetworkManager.shared
     @StateObject private var priceService = PriceService.shared

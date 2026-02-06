@@ -38,7 +38,7 @@ final class WalletConnectService: ObservableObject {
         print("[WC] Configuring WalletConnect...")
 
         let metadata = AppMetadata(
-            name: "EthWallet",
+            name: "PixelWallet",
             description: "Ethereum & Ethscription Wallet",
             url: "https://ethwallet.app",
             icons: ["https://ethwallet.app/icon.png"],

@@ -300,7 +300,7 @@ class BrowserViewModel: ObservableObject {
                     sentToNative.add(img);
                     var src = img.src;
                     var id = 'pa_' + (pixelArtId++);
-                    img.setAttribute('data-ethwallet-pixelart', id);
+                    img.setAttribute('data-pixelwallet-pixelart', id);
                     try {
                         window.webkit.messageHandlers.pixelArt.postMessage({
                             url: src,
@@ -466,7 +466,7 @@ class TabCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMess
 
             let js = """
             (function() {
-                var img = document.querySelector('[data-ethwallet-pixelart="\(imgId)"]');
+                var img = document.querySelector('[data-pixelwallet-pixelart="\(imgId)"]');
                 if (!img) return;
                 var srcDesc = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
                 var dataURI = '\(dataURI)';
@@ -585,7 +585,7 @@ class TabCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMess
                 if (window._ethWalletEvent) { window._ethWalletEvent('accountsChanged', ['\(address.lowercased())']); }
                 if (window.dispatchEvent && window.ethereum) {
                     window.dispatchEvent(new CustomEvent('eip6963:announceProvider', {
-                        detail: Object.freeze({ info: { uuid: 'ethwallet-provider-001', name: 'EthWallet', icon: '', rdns: 'app.ethwallet' }, provider: window.ethereum })
+                        detail: Object.freeze({ info: { uuid: 'pixelwallet-provider-001', name: 'PixelWallet', icon: '', rdns: 'app.pixelwallet' }, provider: window.ethereum })
                     }));
                 }
                 """
@@ -937,7 +937,7 @@ enum Web3ProviderScript {
     static let source = """
     (function() {
         'use strict';
-        if (window.ethereum && window.ethereum.isEthWallet) return;
+        if (window.ethereum && window.ethereum.isPixelWallet) return;
 
         let selectedAddress = null;
         let chainId = null;
@@ -979,7 +979,7 @@ enum Web3ProviderScript {
         }
 
         const ethereum = {
-            isEthWallet: true,
+            isPixelWallet: true,
             isMetaMask: true,
             get chainId() { return chainId; },
             get selectedAddress() { return selectedAddress; },
@@ -1023,13 +1023,13 @@ enum Web3ProviderScript {
 
         Object.defineProperty(window, 'ethereum', { value: ethereum, writable: false, configurable: false });
 
-        const providerDetail = Object.freeze({ info: { uuid: 'ethwallet-provider-001', name: 'EthWallet', icon: '', rdns: 'app.ethwallet' }, provider: ethereum });
+        const providerDetail = Object.freeze({ info: { uuid: 'pixelwallet-provider-001', name: 'PixelWallet', icon: '', rdns: 'app.pixelwallet' }, provider: ethereum });
         function announceProvider() { window.dispatchEvent(new CustomEvent('eip6963:announceProvider', { detail: providerDetail })); }
         window.addEventListener('eip6963:requestProvider', announceProvider);
         announceProvider();
         window.dispatchEvent(new Event('ethereum#initialized'));
         initChainId();
-        console.log('EthWallet: Web3 provider injected (EIP-1193 + EIP-6963)');
+        console.log('PixelWallet: Web3 provider injected (EIP-1193 + EIP-6963)');
     })();
     """
 }

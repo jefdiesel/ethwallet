@@ -1,7 +1,7 @@
 import XCTest
-@testable import EthWalletCore
+@testable import PixelWalletCore
 
-final class EthWalletTests: XCTestCase {
+final class PixelWalletTests: XCTestCase {
 
     // MARK: - HexUtils Tests
 

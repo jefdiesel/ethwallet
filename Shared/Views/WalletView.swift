@@ -646,7 +646,7 @@ struct WalletView: View {
                 .font(.system(size: 48))
                 .foregroundStyle(.tint)
 
-            Text("Welcome to EthWallet")
+            Text("Welcome to PixelWallet")
                 .font(.title2)
                 .fontWeight(.semibold)
 

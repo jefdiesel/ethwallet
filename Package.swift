@@ -2,15 +2,15 @@
 import PackageDescription
 
 let package = Package(
-    name: "EthWallet",
+    name: "PixelWallet",
     platforms: [
         .macOS(.v14),
         .iOS(.v17)
     ],
     products: [
         .library(
-            name: "EthWalletCore",
-            targets: ["EthWalletCore"]
+            name: "PixelWalletCore",
+            targets: ["PixelWalletCore"]
         ),
     ],
     dependencies: [
@@ -18,15 +18,15 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "EthWalletCore",
+            name: "PixelWalletCore",
             dependencies: [
                 .product(name: "web3swift", package: "web3swift"),
             ],
             path: "Shared"
         ),
         .testTarget(
-            name: "EthWalletTests",
-            dependencies: ["EthWalletCore"],
+            name: "PixelWalletTests",
+            dependencies: ["PixelWalletCore"],
             path: "Tests"
         ),
     ]

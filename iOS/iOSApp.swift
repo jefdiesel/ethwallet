@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Main entry point for the iOS application
 @main
-struct EthWalletApp: App {
+struct PixelWalletApp: App {
     @StateObject private var walletViewModel = WalletViewModel()
     @StateObject private var networkManager = NetworkManager.shared
     @StateObject private var priceService = PriceService.shared
@@ -298,7 +298,7 @@ struct iOSOnboardingView: View {
 
                 // Title
                 VStack(spacing: 8) {
-                    Text("EthWallet")
+                    Text("PixelWallet")
                         .font(.largeTitle)
                         .fontWeight(.bold)
 
