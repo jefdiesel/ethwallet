@@ -15,6 +15,7 @@ struct TokensView: View {
     let ethBalance: String
     let ethBalanceUSD: String
 
+    @StateObject private var networkManager = NetworkManager.shared
     @State private var tokens: [TokenBalance] = []
     @State private var isLoading = false
     @State private var error: String?
@@ -23,19 +24,20 @@ struct TokensView: View {
 
     private let tokenService = TokenService.shared
 
-    /// ETH displayed as a token
-    private var ethTokenBalance: TokenBalance {
-        let eth = Token(
+    /// Native token displayed as a token (ETH, SepoliaETH, etc.)
+    private var nativeTokenBalance: TokenBalance {
+        let network = networkManager.selectedNetwork
+        let nativeToken = Token(
             address: "0x0000000000000000000000000000000000000000",
-            symbol: "ETH",
-            name: "Ethereum",
+            symbol: network.currencySymbol,
+            name: network.isTestnet ? "\(network.name) \(network.currencySymbol)" : network.name,
             decimals: 18,
             logoURL: nil,
-            chainId: 1
+            chainId: network.id
         )
         let usdValue = Double(ethBalanceUSD.replacingOccurrences(of: "$", with: "").replacingOccurrences(of: ",", with: ""))
         return TokenBalance(
-            token: eth,
+            token: nativeToken,
             rawBalance: ethBalance,
             formattedBalance: ethBalance,
             usdValue: usdValue
@@ -580,8 +582,8 @@ struct TokensView: View {
         ScrollView {
             LazyVStack(spacing: 0) {
                 // ETH always first
-                Button { withAnimation(.easeInOut(duration: 0.2)) { selectedToken = ethTokenBalance } } label: {
-                    TokenRow(balance: ethTokenBalance)
+                Button { withAnimation(.easeInOut(duration: 0.2)) { selectedToken = nativeTokenBalance } } label: {
+                    TokenRow(balance: nativeTokenBalance)
                 }
                 .buttonStyle(.plain)
                 Divider().padding(.leading, 40)

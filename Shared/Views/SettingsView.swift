@@ -164,7 +164,7 @@ struct SettingsView: View {
                             .disabled(!smartAccountViewModel.isPaymasterAvailable)
                     }
 
-                } else if smartAccountViewModel.isBundlerAvailable {
+                } else if smartAccountViewModel.isBundlerAvailable && account != nil {
                     SettingsRow {
                         Button {
                             showingSmartAccountUpgrade = true
@@ -179,6 +179,11 @@ struct SettingsView: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                    }
+                } else if account == nil {
+                    SettingsRow {
+                        Text("Select an account to upgrade")
+                            .foregroundStyle(.secondary)
                     }
                 }
 
