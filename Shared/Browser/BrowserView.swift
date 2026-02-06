@@ -13,6 +13,7 @@ class BrowserTab: ObservableObject, Identifiable {
     @Published var canGoBack = false
     @Published var canGoForward = false
     @Published var isSecure = false
+    @Published var securityWarnings: [SecurityWarning] = []
 
     let webView: WKWebView
     var coordinator: TabCoordinator?
@@ -51,6 +52,7 @@ class BrowserViewModel: ObservableObject {
         webView.navigationDelegate = coordinator
         webView.uiDelegate = coordinator
         configuration.userContentController.add(coordinator, name: "ethWallet")
+        configuration.userContentController.add(coordinator, name: "pixelArt")
 
         tabs.append(tab)
 
@@ -201,68 +203,181 @@ class BrowserViewModel: ObservableObject {
         }
 
         // Inject pixel art rendering (nearest-neighbor for small/pixel-art images)
+        // WebKit bug: image-rendering:pixelated inside SVG <image> is ignored when
+        // SVG is loaded via <img src="data:image/svg+xml;...">. Fix: extract the
+        // embedded raster from SVG wrappers and set it directly as the <img> src.
         let pixelArtScript = WKUserScript(
             source: """
             (function() {
                 var processed = new WeakSet();
-                function isPixelArt(img) {
-                    if (!img.naturalWidth || !img.naturalHeight) return false;
-                    // Small source images displayed larger = pixel art
-                    if (img.naturalWidth <= 256 && img.naturalHeight <= 256) return true;
-                    // Data URIs with small images (ethscriptions, on-chain SVGs)
-                    if (img.src && (img.src.startsWith('data:image/png') || img.src.startsWith('data:image/gif') || img.src.startsWith('data:image/bmp'))) {
-                        if (img.naturalWidth <= 512 && img.naturalHeight <= 512) return true;
+
+                // Decode an SVG data URI and extract embedded raster <image href="...">
+                function extractRasterFromSVG(src) {
+                    try {
+                        var svgText = null;
+                        if (src.indexOf('data:image/svg+xml;base64,') === 0) {
+                            svgText = atob(src.split(',')[1]);
+                        } else if (src.indexOf('data:image/svg+xml') === 0) {
+                            svgText = decodeURIComponent(src.split(',')[1]);
+                        }
+                        if (!svgText) return null;
+
+                        var parser = new DOMParser();
+                        var doc = parser.parseFromString(svgText, 'image/svg+xml');
+                        var images = doc.querySelectorAll('image');
+                        if (images.length === 0) return null;
+
+                        // Get the href of the first embedded image
+                        var href = images[0].getAttribute('href') || images[0].getAttributeNS('http://www.w3.org/1999/xlink', 'href');
+                        if (!href) return null;
+
+                        // Only extract if it's a raster data URI (png, gif, bmp, jpeg, webp)
+                        if (href.match(/^data:image\\/(png|gif|bmp|jpeg|jpg|webp)/)) {
+                            return href;
+                        }
+                        return null;
+                    } catch(e) {
+                        return null;
                     }
-                    return false;
                 }
-                function applyToImg(img) {
+
+                function isSmallImage(img) {
+                    return img.naturalWidth > 0 && img.naturalWidth <= 512 &&
+                           img.naturalHeight > 0 && img.naturalHeight <= 512;
+                }
+
+                function processImg(img) {
                     if (processed.has(img)) return;
-                    function check() {
-                        if (isPixelArt(img)) {
-                            img.style.imageRendering = 'pixelated';
+
+                    function handle() {
+                        if (processed.has(img)) return;
+
+                        var src = img.src || '';
+
+                        // Case 1: SVG data URI wrapping a raster image (WebKit bug workaround)
+                        if (src.indexOf('data:image/svg+xml') === 0) {
+                            var raster = extractRasterFromSVG(src);
+                            if (raster) {
+                                // Preserve dimensions before swapping
+                                var w = img.width || img.offsetWidth;
+                                var h = img.height || img.offsetHeight;
+                                img.src = raster;
+                                if (w) img.style.width = w + 'px';
+                                if (h) img.style.height = h + 'px';
+                                img.style.setProperty('image-rendering', 'pixelated', 'important');
+                                processed.add(img);
+                                return;
+                            }
+                        }
+
+                        // Case 2: Small RASTER images (not SVG) displayed larger = pixel art
+                        if (!src.startsWith('data:image/svg') && isSmallImage(img)) {
+                            img.style.setProperty('image-rendering', 'pixelated', 'important');
+                            processed.add(img);
+                            return;
+                        }
+
+                        // Case 3: Raster data URIs that haven't loaded naturalWidth yet
+                        if (src.match(/^data:image\\/(png|gif|bmp)/)) {
+                            img.style.setProperty('image-rendering', 'pixelated', 'important');
                             processed.add(img);
                         }
                     }
-                    if (img.complete && img.naturalWidth > 0) check();
-                    else img.addEventListener('load', check, { once: true });
+
+                    if (img.complete && img.naturalWidth > 0) {
+                        handle();
+                    } else {
+                        img.addEventListener('load', handle, { once: true });
+                    }
                 }
-                function applyToSVG(svg) {
-                    // SVGs containing embedded raster images (wrapped ethscription tokenURIs)
-                    svg.querySelectorAll('image').forEach(function(img) {
-                        img.setAttribute('image-rendering', 'pixelated');
-                        img.style.imageRendering = 'pixelated';
-                    });
+
+                // Send SVG image URL to Swift for native fetch + raster extraction
+                // Bypasses CORS entirely - Swift fetches the URL and sends raster back
+                var sentToNative = new WeakSet();
+                var pixelArtId = 0;
+                function sendToNativeForProcessing(img) {
+                    if (sentToNative.has(img) || processed.has(img)) return;
+                    sentToNative.add(img);
+                    var src = img.src;
+                    var id = 'pa_' + (pixelArtId++);
+                    img.setAttribute('data-ethwallet-pixelart', id);
+                    try {
+                        window.webkit.messageHandlers.pixelArt.postMessage({
+                            url: src,
+                            imgId: id
+                        });
+                    } catch(e) {}
                 }
+
+                // Handle URL-served images (OpenSea CDN, etc.)
+                function processImgURL(img) {
+                    if (processed.has(img)) return;
+
+                    function handle() {
+                        if (processed.has(img)) return;
+                        var nw = img.naturalWidth;
+                        var nh = img.naturalHeight;
+                        if (nw < 20 || nh < 20) return;
+                        var src = img.src || '';
+                        var isNFTCDN = src.indexOf('seadn.io') !== -1 ||
+                                       src.indexOf('.svg') !== -1;
+                        var isSquarish = nw > 0 && nh > 0 && Math.abs(nw - nh) < 50;
+                        if (isNFTCDN || (isSquarish && nw <= 1000)) {
+                            sendToNativeForProcessing(img);
+                        } else if (nw <= 128 && nh <= 128) {
+                            img.style.setProperty('image-rendering', 'pixelated', 'important');
+                            processed.add(img);
+                        }
+                    }
+
+                    if (img.complete && img.naturalWidth > 0) handle();
+                    else img.addEventListener('load', handle, { once: true });
+                }
+
                 function scan() {
-                    document.querySelectorAll('img').forEach(applyToImg);
-                    document.querySelectorAll('svg').forEach(applyToSVG);
-                    // Canvas elements showing pixel art
+                    document.querySelectorAll('img').forEach(function(img) {
+                        var src = img.src || '';
+                        if (src.indexOf('data:') === 0) {
+                            processImg(img);
+                        } else if (src.indexOf('http') === 0) {
+                            processImgURL(img);
+                        }
+                    });
+                    // Canvas pixel art
                     document.querySelectorAll('canvas').forEach(function(c) {
                         if (c.width <= 256 && c.height <= 256) {
-                            c.style.imageRendering = 'pixelated';
+                            c.style.setProperty('image-rendering', 'pixelated', 'important');
                         }
                     });
                 }
-                // Inject a global CSS rule as fallback for common NFT image patterns
+
+                // Global CSS for broad coverage
                 var style = document.createElement('style');
-                style.textContent = 'img[src*="data:image/png"], img[src*="data:image/gif"], img[src*="data:image/bmp"], img[src*="data:image/svg"] { image-rendering: pixelated; } svg image { image-rendering: pixelated; }';
+                style.textContent = [
+                    'img[src^="data:image/png"], img[src^="data:image/gif"],',
+                    'img[src^="data:image/bmp"] { image-rendering: pixelated !important; }'
+                ].join(' ');
                 (document.head || document.documentElement).appendChild(style);
 
                 var observer = new MutationObserver(function(mutations) {
                     for (var m of mutations) {
                         if (m.type === 'childList') { scan(); }
-                        else if (m.type === 'attributes' && m.target.tagName === 'IMG') { applyToImg(m.target); }
+                        else if (m.type === 'attributes' && m.target.tagName === 'IMG') {
+                            processImg(m.target);
+                        }
                     }
                 });
                 function startObserver() {
-                    observer.observe(document.body || document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['src', 'srcset'] });
+                    observer.observe(document.body || document.documentElement, {
+                        childList: true, subtree: true,
+                        attributes: true, attributeFilter: ['src', 'srcset']
+                    });
                 }
                 if (document.body) startObserver();
                 else document.addEventListener('DOMContentLoaded', startObserver);
                 document.addEventListener('DOMContentLoaded', scan);
                 if (document.readyState !== 'loading') scan();
-                // Re-scan periodically for lazy-loaded content
-                setInterval(scan, 3000);
+                setInterval(scan, 2000);
             })();
             """,
             injectionTime: .atDocumentEnd,
@@ -309,6 +424,14 @@ class TabCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMess
     // MARK: - WKScriptMessageHandler
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        if message.name == "pixelArt" {
+            guard let body = message.body as? [String: Any],
+                  let url = body["url"] as? String,
+                  let imgId = body["imgId"] as? String else { return }
+            Task { await handlePixelArtRequest(url: url, imgId: imgId) }
+            return
+        }
+
         guard message.name == "ethWallet",
               let body = message.body as? [String: Any],
               let id = body["id"] as? Double,
@@ -318,6 +441,59 @@ class TabCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMess
 
         Task { @MainActor in
             await handleWeb3Request(id: id, method: method, params: params)
+        }
+    }
+
+    /// Fetch SVG from URL (no CORS), extract raster, send back to JS
+    private func handlePixelArtRequest(url: String, imgId: String) async {
+        guard let fetchURL = URL(string: url) else { return }
+
+        do {
+            let (data, _) = try await URLSession.shared.data(from: fetchURL)
+
+            // Check if it's SVG wrapping a raster
+            guard let rasterData = NFTService.extractRasterFromSVGData(data) else {
+                print("[PixelArt] Not an SVG with embedded raster: \(url.prefix(80))")
+                return
+            }
+
+            let base64 = rasterData.base64EncodedString()
+            // Determine MIME type from PNG header
+            let mime = rasterData.starts(with: [0x89, 0x50, 0x4E, 0x47]) ? "image/png" : "image/gif"
+            let dataURI = "data:\(mime);base64,\(base64)"
+
+            print("[PixelArt] Extracted \(rasterData.count) byte raster from SVG, sending to JS")
+
+            let js = """
+            (function() {
+                var img = document.querySelector('[data-ethwallet-pixelart="\(imgId)"]');
+                if (!img) return;
+                var srcDesc = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
+                var dataURI = '\(dataURI)';
+                srcDesc.set.call(img, dataURI);
+                img.style.setProperty('image-rendering', 'pixelated', 'important');
+                Object.defineProperty(img, 'src', {
+                    get: function() { return dataURI; },
+                    set: function(v) {
+                        if (v.indexOf('.svg') !== -1 || v.indexOf('image/svg') !== -1) return;
+                        srcDesc.set.call(this, v);
+                    },
+                    configurable: true
+                });
+                img.setAttribute = (function(orig) {
+                    return function(n, v) {
+                        if (n === 'src' && (v.indexOf('.svg') !== -1 || v.indexOf('image/svg') !== -1)) return;
+                        orig.call(this, n, v);
+                    };
+                })(img.setAttribute);
+            })();
+            """
+
+            await MainActor.run {
+                tab?.webView.evaluateJavaScript(js, completionHandler: nil)
+            }
+        } catch {
+            print("[PixelArt] Fetch failed for \(url.prefix(80)): \(error)")
         }
     }
 
@@ -395,6 +571,14 @@ class TabCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMess
             tab.canGoForward = webView.canGoForward
             tab.isSecure = webView.url?.scheme == "https"
 
+            // Check for phishing
+            if let host = webView.url?.host {
+                let warnings = await PhishingProtectionService.shared.checkDomain(host)
+                tab.securityWarnings = warnings
+            } else {
+                tab.securityWarnings = []
+            }
+
             // Re-announce provider
             if let address = browserModel?.connectedAddress {
                 let js = """
@@ -451,6 +635,8 @@ struct BrowserView: View {
 
     @State private var urlText = ""
     @State private var showingSignSheet = false
+    @State private var showingSecurityWarning = false
+    @State private var dismissedWarnings = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -462,10 +648,38 @@ struct BrowserView: View {
             // Toolbar
             browserToolbar
 
+            // Security warning banner
+            if let warnings = browserModel.activeTab?.securityWarnings, !warnings.isEmpty, !dismissedWarnings {
+                SecurityWarningBanner(warnings: warnings) {
+                    dismissedWarnings = true
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+            }
+
             Divider()
 
-            // Web content
-            WebViewContainer(browserModel: browserModel)
+            // Web content (with blocking overlay for critical warnings)
+            ZStack {
+                WebViewContainer(browserModel: browserModel)
+
+                if let warnings = browserModel.activeTab?.securityWarnings,
+                   let critical = warnings.first(where: { $0.severity == .critical }),
+                   !dismissedWarnings {
+                    Color.black.opacity(0.5)
+                        .ignoresSafeArea()
+
+                    SecurityBlockingOverlay(
+                        warning: critical,
+                        onProceedAnyway: {
+                            dismissedWarnings = true
+                        },
+                        onGoBack: {
+                            browserModel.goBack()
+                        }
+                    )
+                }
+            }
         }
         .sheet(isPresented: $showingSignSheet, onDismiss: {
             // If dismissed without action, reject the request
@@ -662,11 +876,15 @@ struct BrowserView: View {
             if let url = newURL {
                 urlText = url.absoluteString
             }
+            // Reset dismissed warnings when URL changes
+            dismissedWarnings = false
         }
         .onChange(of: browserModel.activeTabId) { _, _ in
             if let url = browserModel.activeTab?.url {
                 urlText = url.absoluteString
             }
+            // Reset dismissed warnings when tab changes
+            dismissedWarnings = false
         }
     }
 }

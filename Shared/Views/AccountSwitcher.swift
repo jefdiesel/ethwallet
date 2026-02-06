@@ -38,26 +38,17 @@ struct AccountSwitcher: View {
                 Label("Add Account", systemImage: "plus")
             }
         } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "person.circle.fill")
-                    .font(.title2)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(selectedAccount?.label ?? "No Account")
-                        .font(.headline)
-                    Text(selectedAccount?.shortAddress ?? "")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Image(systemName: "chevron.down")
+            HStack(spacing: 4) {
+                Image(systemName: "person.circle")
+                    .font(.body)
+                Text(selectedAccount?.label ?? "No Account")
                     .font(.caption)
+                Image(systemName: "chevron.down")
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
             }
-            .padding(8)
-            .background(Color.secondary.opacity(0.1))
-            .cornerRadius(8)
         }
+        .buttonStyle(.plain)
         .sheet(isPresented: $showingAddAccount) {
             AddAccountSheet()
         }
@@ -93,7 +84,7 @@ struct AddAccountSheet: View {
             }
             #endif
         }
-        .frame(minWidth: 350, minHeight: 250)
+        .frame(minWidth: 280, minHeight: 200)
     }
 
     @ViewBuilder

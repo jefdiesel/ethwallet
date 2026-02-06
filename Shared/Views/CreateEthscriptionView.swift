@@ -45,7 +45,7 @@ struct CreateEthscriptionView: View {
                     }
                 }
             }
-            .formStyle(.grouped)
+            .formStyle(.automatic)
             .navigationTitle("Create Ethscription")
             #if os(macOS)
             .toolbar {
@@ -61,7 +61,7 @@ struct CreateEthscriptionView: View {
             }
             #endif
         }
-        .frame(minWidth: 450, minHeight: 600)
+        .frame(minWidth: 360, minHeight: 480)
         .fileImporter(
             isPresented: $showingFilePicker,
             allowedContentTypes: supportedFileTypes,
@@ -344,12 +344,12 @@ struct CreateConfirmationSheet: View {
                 .cornerRadius(8)
 
                 // Buttons
-                HStack(spacing: 16) {
+                HStack(spacing: 12) {
                     Button("Cancel") {
                         dismiss()
                     }
                     .buttonStyle(.bordered)
-                    .controlSize(.large)
+                    .controlSize(.regular)
 
                     Button {
                         create()
@@ -362,14 +362,14 @@ struct CreateConfirmationSheet: View {
                         }
                     }
                     .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
+                    .controlSize(.regular)
                     .disabled(viewModel.isCreating)
                 }
             }
             .padding()
             .navigationTitle("Confirm Creation")
         }
-        .frame(minWidth: 400, minHeight: 500)
+        .frame(minWidth: 320, minHeight: 400)
     }
 
     @ViewBuilder
@@ -481,10 +481,10 @@ struct CreateSuccessSheet: View {
                 onDone()
             }
             .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            .controlSize(.regular)
         }
         .padding()
-        .frame(minWidth: 350, minHeight: 400)
+        .frame(minWidth: 280, minHeight: 320)
     }
 }
 

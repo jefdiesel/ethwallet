@@ -281,7 +281,7 @@ struct ProposalSheet: View {
             .padding()
             .navigationTitle("Connection Request")
         }
-        .frame(minWidth: 400, minHeight: 450)
+        .frame(minWidth: 340, minHeight: 380)
     }
 
     private func approve() {
@@ -393,7 +393,7 @@ struct RequestSheet: View {
             .padding()
             .navigationTitle("Signature Request")
         }
-        .frame(minWidth: 400, minHeight: 400)
+        .frame(minWidth: 340, minHeight: 340)
     }
 
     private var requestIcon: String {

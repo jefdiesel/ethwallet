@@ -105,7 +105,9 @@ final class KeychainService {
 
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
+        #if DEBUG
         print("[Keychain] seedExists check for '\(walletId)': status=\(status)")
+        #endif
 
         // errSecInteractionNotAllowed (-25308) means item exists but needs auth
         // errSecSuccess (0) means item exists
@@ -176,6 +178,73 @@ final class KeychainService {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: "pk_\(accountId)",
+            kSecAttrService as String: serviceName
+        ]
+
+        let status = SecItemDelete(query as CFDictionary)
+
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw KeychainError.deleteFailed(status)
+        }
+    }
+
+    // MARK: - API Key Storage (for third-party service keys)
+
+    /// Store an API key securely (no biometric required, just device unlock)
+    /// - Parameters:
+    ///   - key: The API key to store
+    ///   - identifier: Unique identifier for the key (e.g., "tenderly", "etherscan")
+    func storeAPIKey(_ key: String, for identifier: String) throws {
+        try? deleteAPIKey(for: identifier)
+
+        guard let keyData = key.data(using: .utf8) else {
+            throw KeychainError.unknownError
+        }
+
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: "apikey_\(identifier)",
+            kSecAttrService as String: serviceName,
+            kSecValueData as String: keyData,
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        ]
+
+        let status = SecItemAdd(query as CFDictionary, nil)
+
+        guard status == errSecSuccess else {
+            throw KeychainError.saveFailed(status)
+        }
+    }
+
+    /// Retrieve an API key
+    /// - Parameter identifier: Unique identifier for the key
+    /// - Returns: The API key, or nil if not found
+    func retrieveAPIKey(for identifier: String) -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: "apikey_\(identifier)",
+            kSecAttrService as String: serviceName,
+            kSecReturnData as String: true
+        ]
+
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+
+        guard status == errSecSuccess,
+              let data = result as? Data,
+              let key = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+
+        return key
+    }
+
+    /// Delete an API key
+    /// - Parameter identifier: Unique identifier for the key
+    func deleteAPIKey(for identifier: String) throws {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: "apikey_\(identifier)",
             kSecAttrService as String: serviceName
         ]
 

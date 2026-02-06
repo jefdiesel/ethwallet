@@ -1,4 +1,5 @@
 import Foundation
+import CryptoSwift
 
 /// Utilities for hex encoding and decoding
 enum HexUtils {
@@ -86,11 +87,51 @@ enum HexUtils {
         return hex.allSatisfy { $0.isHexDigit }
     }
 
-    /// Check if string is valid Ethereum address
+    /// Check if string is valid Ethereum address (basic format check)
     static func isValidAddress(_ address: String) -> Bool {
         guard address.hasPrefix("0x") || address.hasPrefix("0X") else { return false }
         let hex = String(address.dropFirst(2))
         return hex.count == 40 && hex.allSatisfy { $0.isHexDigit }
+    }
+
+    /// Check if string is valid Ethereum address with correct EIP-55 checksum
+    /// Returns true if address has valid checksum, or if address is all lowercase/uppercase (no checksum)
+    static func isValidChecksumAddress(_ address: String) -> Bool {
+        guard isValidAddress(address) else { return false }
+
+        let hex = String(address.dropFirst(2))
+
+        // If all lowercase or all uppercase, treat as valid (no checksum applied)
+        let isAllLower = hex == hex.lowercased()
+        let isAllUpper = hex == hex.uppercased()
+        if isAllLower || isAllUpper {
+            return true
+        }
+
+        // Verify EIP-55 checksum
+        return address == toChecksumAddress(address)
+    }
+
+    /// Convert address to EIP-55 checksummed format
+    static func toChecksumAddress(_ address: String) -> String {
+        let hex = String(address.dropFirst(2)).lowercased()
+        guard hex.count == 40 else { return address }
+
+        // Hash the lowercase address
+        let hashBytes = hex.bytes.sha3(.keccak256)
+        let hashHex = hashBytes.toHexString()
+
+        var checksummed = "0x"
+        for (i, char) in hex.enumerated() {
+            let hashChar = hashHex[hashHex.index(hashHex.startIndex, offsetBy: i)]
+            if let hashVal = Int(String(hashChar), radix: 16), hashVal >= 8 {
+                checksummed.append(char.uppercased())
+            } else {
+                checksummed.append(char)
+            }
+        }
+
+        return checksummed
     }
 
     /// Check if string is valid transaction hash

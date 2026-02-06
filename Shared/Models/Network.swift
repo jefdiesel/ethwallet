@@ -9,6 +9,17 @@ struct Network: Identifiable, Codable, Hashable {
     let explorerURL: URL?
     let isTestnet: Bool
 
+    /// Flashbots RPC URL for MEV protection (only available on Ethereum mainnet)
+    var flashbotsRPCURL: URL? {
+        guard id == 1 else { return nil }
+        return URL(string: "https://rpc.flashbots.net")
+    }
+
+    /// Whether this network supports MEV protection via Flashbots
+    var supportsMEVProtection: Bool {
+        return id == 1 // Only Ethereum mainnet
+    }
+
     // MARK: - Default Networks
 
     static let ethereum = Network(

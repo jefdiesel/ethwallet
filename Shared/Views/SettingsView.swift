@@ -2,22 +2,29 @@ import SwiftUI
 
 /// Settings view for wallet configuration
 struct SettingsView: View {
+    var account: Account?
+
     @Environment(\.dismiss) private var dismiss
     @StateObject private var networkManager = NetworkManager.shared
 
     @State private var showingDeleteConfirmation = false
     @State private var showingExportWarning = false
     @State private var showingRecoveryPhrase = false
+    @State private var showingApprovals = false
 
     @AppStorage("showTestnets") private var showTestnets = true
     @AppStorage("defaultNetwork") private var defaultNetworkId = 1
     @AppStorage("currencyDisplay") private var currencyDisplay = "USD"
+    @AppStorage("mevProtectionEnabled") private var mevProtectionEnabled = true
 
     var body: some View {
         NavigationStack {
             Form {
                 // Network Settings
                 networkSection
+
+                // Transaction Protection
+                transactionProtectionSection
 
                 // Security Settings
                 securitySection
@@ -31,7 +38,7 @@ struct SettingsView: View {
                 // Danger Zone
                 dangerZoneSection
             }
-            .formStyle(.grouped)
+            .formStyle(.automatic)
             .navigationTitle("Settings")
             #if os(macOS)
             .toolbar {
@@ -41,7 +48,7 @@ struct SettingsView: View {
             }
             #endif
         }
-        .frame(minWidth: 450, minHeight: 500)
+        .frame(minWidth: 340, minHeight: 400)
         .alert("Delete Wallet", isPresented: $showingDeleteConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Delete", role: .destructive) {
@@ -52,6 +59,11 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showingRecoveryPhrase) {
             RecoveryPhraseSheet()
+        }
+        .sheet(isPresented: $showingApprovals) {
+            if let account = account {
+                ApprovalsView(account: account, chainId: networkManager.selectedNetwork.id)
+            }
         }
     }
 
@@ -75,6 +87,22 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Transaction Protection Section
+
+    @ViewBuilder
+    private var transactionProtectionSection: some View {
+        Section {
+            Toggle("MEV Protection", isOn: $mevProtectionEnabled)
+                .onChange(of: mevProtectionEnabled) { _, newValue in
+                    MEVProtectionService.shared.isEnabled = newValue
+                }
+        } header: {
+            Text("Transaction Protection")
+        } footer: {
+            Text("Routes Ethereum mainnet transactions through Flashbots to prevent front-running and sandwich attacks. Recommended for swaps and large transactions.")
+        }
+    }
+
     // MARK: - Security Section
 
     @ViewBuilder
@@ -87,6 +115,16 @@ struct SettingsView: View {
                 Spacer()
                 Text(KeychainService.shared.isBiometricAvailable ? "Available" : "Unavailable")
                     .foregroundStyle(.secondary)
+            }
+
+            // Token approvals
+            if let account = account {
+                Button {
+                    showingApprovals = true
+                } label: {
+                    ApprovalSummaryRow(account: account, chainId: networkManager.selectedNetwork.id)
+                }
+                .buttonStyle(.plain)
             }
 
             // View recovery phrase
@@ -221,7 +259,7 @@ struct RecoveryPhraseSheet: View {
             }
             #endif
         }
-        .frame(minWidth: 400, minHeight: 450)
+        .frame(minWidth: 320, minHeight: 380)
     }
 
     @ViewBuilder

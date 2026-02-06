@@ -16,7 +16,7 @@ struct ReceiveView: View {
                 // QR Code
                 if let account = account {
                     qrCodeView(for: account.address)
-                        .frame(width: 200, height: 200)
+                        .frame(width: 160, height: 160)
                         .padding()
                         .background(Color.white)
                         .cornerRadius(16)
@@ -48,7 +48,7 @@ struct ReceiveView: View {
                         systemImage: copied ? "checkmark" : "doc.on.doc"
                     )
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(PrimaryButtonStyle())
                 .disabled(account == nil)
 
                 // Share button
@@ -57,7 +57,7 @@ struct ReceiveView: View {
                     ShareLink(item: address) {
                         Label("Share Address", systemImage: "square.and.arrow.up")
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(SecondaryButtonStyle())
                 }
                 #endif
 
@@ -86,7 +86,7 @@ struct ReceiveView: View {
             }
             #endif
         }
-        .frame(minWidth: 350, minHeight: 500)
+        .frame(minWidth: 280, minHeight: 380)
     }
 
     @ViewBuilder

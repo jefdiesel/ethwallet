@@ -37,33 +37,23 @@ struct NetworkSwitcher: View {
                 Label("Add Custom Network", systemImage: "plus")
             }
         } label: {
-            HStack(spacing: 8) {
-                // Network indicator
+            HStack(spacing: 4) {
                 Circle()
                     .fill(networkStatusColor)
-                    .frame(width: 8, height: 8)
-
+                    .frame(width: 6, height: 6)
                 Text(selectedNetwork.name)
-                    .fontWeight(.medium)
-
-                if selectedNetwork.isTestnet {
-                    Text("Testnet")
-                        .font(.caption)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.orange.opacity(0.2))
-                        .foregroundStyle(.orange)
-                        .cornerRadius(4)
-                }
-
-                Image(systemName: "chevron.down")
                     .font(.caption)
+                if selectedNetwork.isTestnet {
+                    Text("Test")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                }
+                Image(systemName: "chevron.down")
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
             }
-            .padding(8)
-            .background(Color.secondary.opacity(0.1))
-            .cornerRadius(8)
         }
+        .buttonStyle(.plain)
         .sheet(isPresented: $showingAddNetwork) {
             AddNetworkSheet()
         }
@@ -178,7 +168,7 @@ struct AddNetworkSheet: View {
                     }
                 }
             }
-            .formStyle(.grouped)
+            .formStyle(.automatic)
             .navigationTitle("Add Network")
             #if os(macOS)
             .toolbar {
@@ -194,7 +184,7 @@ struct AddNetworkSheet: View {
             }
             #endif
         }
-        .frame(minWidth: 400, minHeight: 400)
+        .frame(minWidth: 320, minHeight: 320)
     }
 
     private var canAdd: Bool {

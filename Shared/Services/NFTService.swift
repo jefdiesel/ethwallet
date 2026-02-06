@@ -44,9 +44,13 @@ final class NFTService {
             // Parse token ID
             let tokenId = nft.tokenId
 
-            // Get image data if available
+            // Get image data - prefer raw SVG data URI (extracts crisp pixel art)
+            // over Alchemy's CDN cache (pre-rasterized with bilinear blur)
             var imageData: Data? = nil
-            if let imageURL = nft.image?.cachedUrl ?? nft.image?.originalUrl ?? nft.raw?.metadata?.image {
+            if let rawImage = nft.raw?.metadata?.image, rawImage.hasPrefix("data:image/svg+xml") {
+                imageData = try? await fetchImageData(from: rawImage)
+            }
+            if imageData == nil, let imageURL = nft.image?.cachedUrl ?? nft.image?.originalUrl ?? nft.raw?.metadata?.image {
                 imageData = try? await fetchImageData(from: imageURL)
             }
 
@@ -73,7 +77,31 @@ final class NFTService {
     private func fetchImageData(from urlString: String) async throws -> Data? {
         var fetchURL: URL?
 
-        if urlString.hasPrefix("ipfs://") {
+        if urlString.hasPrefix("data:image/svg+xml") {
+            // SVG data URI - extract embedded raster if present
+            if let raster = NFTService.extractRasterFromSVGDataURI(urlString) {
+                return raster
+            }
+            // Fallback: let NSImage handle the SVG
+            if let commaIndex = urlString.firstIndex(of: ",") {
+                let payload = String(urlString[urlString.index(after: commaIndex)...])
+                if urlString.contains(";base64,") {
+                    return Data(base64Encoded: payload)
+                } else {
+                    return payload.removingPercentEncoding?.data(using: .utf8)
+                }
+            }
+            return nil
+        } else if urlString.hasPrefix("data:image/") {
+            // Raster data URI - decode directly
+            if let commaIndex = urlString.firstIndex(of: ",") {
+                let payload = String(urlString[urlString.index(after: commaIndex)...])
+                if urlString.contains(";base64,") {
+                    return Data(base64Encoded: payload)
+                }
+            }
+            return nil
+        } else if urlString.hasPrefix("ipfs://") {
             let hash = urlString.replacingOccurrences(of: "ipfs://", with: "")
             fetchURL = URL(string: "https://ipfs.io/ipfs/\(hash)")
         } else if urlString.hasPrefix("http") {
@@ -83,7 +111,83 @@ final class NFTService {
         guard let url = fetchURL else { return nil }
 
         let (data, _) = try await URLSession.shared.data(from: url)
+
+        // Check if fetched data is SVG wrapping a raster (common for on-chain NFTs)
+        if let raster = NFTService.extractRasterFromSVGData(data) {
+            return raster
+        }
+
         return data
+    }
+
+    /// Extract embedded raster image from SVG data URI string
+    private static func extractRasterFromSVGDataURI(_ dataURI: String) -> Data? {
+        guard let commaIndex = dataURI.firstIndex(of: ",") else { return nil }
+        let payload = String(dataURI[dataURI.index(after: commaIndex)...])
+
+        let svgString: String?
+        if dataURI.contains(";base64,") {
+            guard let decoded = Data(base64Encoded: payload) else { return nil }
+            svgString = String(data: decoded, encoding: .utf8)
+        } else {
+            svgString = payload.removingPercentEncoding
+        }
+
+        guard let svg = svgString else { return nil }
+        return NFTService.extractRasterFromSVGString(svg)
+    }
+
+    /// Extract embedded raster image from raw SVG data bytes
+    /// Static so it can be called from views (NFTGridItem) too
+    static func extractRasterFromSVGData(_ data: Data) -> Data? {
+        guard let svgString = String(data: data, encoding: .utf8),
+              svgString.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("<") &&
+              svgString.contains("<svg") else {
+            return nil
+        }
+        return extractRasterFromSVGString(svgString)
+    }
+
+    /// Parse SVG string and extract the first embedded raster <image href="data:image/...">
+    private static func extractRasterFromSVGString(_ svg: String) -> Data? {
+        // Look for href="data:image/(png|gif|bmp|jpeg|webp);base64,..."
+        // or xlink:href="data:image/..."
+        let patterns = [
+            "href=\"data:image/",
+            "href='data:image/"
+        ]
+
+        for pattern in patterns {
+            guard let hrefStart = svg.range(of: pattern) else { continue }
+            let afterHref = svg[hrefStart.lowerBound...]
+
+            // Find the opening quote and extract the data URI
+            let quoteChar: Character = svg[hrefStart.lowerBound...].first == "'" ? "'" : "\""
+            guard let openQuote = afterHref.firstIndex(of: quoteChar) else { continue }
+            let afterQuote = afterHref[afterHref.index(after: openQuote)...]
+            guard let closeQuote = afterQuote.firstIndex(of: quoteChar) else { continue }
+
+            let dataURI = String(afterQuote[afterQuote.startIndex..<closeQuote])
+
+            // Only extract raster types, not nested SVGs
+            guard dataURI.hasPrefix("data:image/png") ||
+                  dataURI.hasPrefix("data:image/gif") ||
+                  dataURI.hasPrefix("data:image/bmp") ||
+                  dataURI.hasPrefix("data:image/jpeg") ||
+                  dataURI.hasPrefix("data:image/webp") else {
+                continue
+            }
+
+            // Decode the data URI
+            guard let commaIndex = dataURI.firstIndex(of: ",") else { continue }
+            let payload = String(dataURI[dataURI.index(after: commaIndex)...])
+
+            if dataURI.contains(";base64,") {
+                return Data(base64Encoded: payload)
+            }
+        }
+
+        return nil
     }
 
     /// Fetch NFT metadata from tokenURI

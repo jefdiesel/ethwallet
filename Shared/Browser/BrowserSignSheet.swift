@@ -17,6 +17,14 @@ struct BrowserSignSheet: View {
     @State private var isEstimatingGas = true
     @State private var gasError: String?
 
+    // Security warnings
+    @State private var securityWarnings: [SecurityWarning] = []
+    @State private var isCheckingSecurity = false
+
+    // Transaction simulation
+    @State private var simulationResult: SimulationResult?
+    @State private var isSimulating = false
+
     private var priceService: PriceService { PriceService.shared }
 
     var body: some View {
@@ -68,6 +76,27 @@ struct BrowserSignSheet: View {
                     transactionSection(txDetails)
                 }
 
+                // Simulation result
+                if isTransaction {
+                    SimulationResultView(
+                        result: simulationResult ?? SimulationResult(
+                            success: true,
+                            balanceChanges: [],
+                            approvalChanges: [],
+                            nftTransfers: [],
+                            riskWarnings: [],
+                            gasUsed: BigUInt(0),
+                            revertReason: nil
+                        ),
+                        isLoading: isSimulating
+                    )
+                }
+
+                // Security warnings
+                if !securityWarnings.isEmpty {
+                    SecurityWarningBanner(warnings: securityWarnings)
+                }
+
                 if let error = error {
                     Text(error)
                         .font(.caption)
@@ -100,10 +129,12 @@ struct BrowserSignSheet: View {
             .padding()
             .navigationTitle("Signature Request")
         }
-        .frame(minWidth: 420, minHeight: isTransaction ? 550 : 450)
+        .frame(minWidth: 360, minHeight: isTransaction ? 480 : 380)
         .task {
             if isTransaction {
                 await estimateGas()
+                await checkSecurity()
+                await simulateTransaction()
             }
         }
     }
@@ -188,6 +219,91 @@ struct BrowserSignSheet: View {
                 .font(mono ? .caption.monospaced() : .caption)
                 .lineLimit(1)
                 .truncationMode(.middle)
+        }
+    }
+
+    // MARK: - Transaction Simulation
+
+    private func simulateTransaction() async {
+        guard let txDetails = extractTransactionDetails(),
+              let from = walletViewModel.selectedAccount?.address,
+              let to = txDetails["to"] as? String else {
+            return
+        }
+
+        await MainActor.run {
+            isSimulating = true
+        }
+
+        let valueHex = txDetails["value"] as? String ?? "0x0"
+        let valueClean = valueHex.hasPrefix("0x") ? String(valueHex.dropFirst(2)) : valueHex
+        let value = BigUInt(valueClean, radix: 16) ?? BigUInt(0)
+
+        var txData: Data?
+        if let dataHex = txDetails["data"] as? String, dataHex != "0x" {
+            let clean = dataHex.hasPrefix("0x") ? String(dataHex.dropFirst(2)) : dataHex
+            txData = Data(hexString: clean)
+        }
+
+        let chainId = NetworkManager.shared.selectedNetwork.id
+
+        do {
+            let result = try await TransactionSimulationService.shared.simulate(
+                from: from,
+                to: to,
+                value: value,
+                data: txData,
+                chainId: chainId
+            )
+
+            await MainActor.run {
+                self.simulationResult = result
+                self.isSimulating = false
+            }
+        } catch {
+            await MainActor.run {
+                self.simulationResult = SimulationResult(
+                    success: true,
+                    balanceChanges: [],
+                    approvalChanges: [],
+                    nftTransfers: [],
+                    riskWarnings: [.simulationFailed(reason: error.localizedDescription)],
+                    gasUsed: BigUInt(0),
+                    revertReason: nil
+                )
+                self.isSimulating = false
+            }
+        }
+    }
+
+    // MARK: - Security Check
+
+    private func checkSecurity() async {
+        guard let txDetails = extractTransactionDetails(),
+              let to = txDetails["to"] as? String else {
+            return
+        }
+
+        isCheckingSecurity = true
+        let chainId = NetworkManager.shared.selectedNetwork.id
+        let warnings = await PhishingProtectionService.shared.checkRecipient(to, chainId: chainId)
+
+        // Check for unlimited approval
+        if let data = txDetails["data"] as? String, data.count > 10 {
+            // Check if this is an approve() call (function selector: 0x095ea7b3)
+            if data.lowercased().hasPrefix("0x095ea7b3") {
+                // Check if amount is max uint256 (unlimited)
+                let amountHex = String(data.dropFirst(74)) // Skip selector + address
+                if amountHex.contains("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff") {
+                    let tokenAddress = txDetails["to"] as? String ?? "Unknown"
+                    securityWarnings.append(.unlimitedApproval(token: tokenAddress, spender: to))
+                }
+            }
+        }
+
+        await MainActor.run {
+            self.securityWarnings.append(contentsOf: warnings)
+            self.isCheckingSecurity = false
         }
     }
 

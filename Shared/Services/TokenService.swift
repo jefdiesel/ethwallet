@@ -1,14 +1,21 @@
 import Foundation
 import BigInt
+import web3swift
+import Web3Core
 
 /// Service for fetching ERC-20 token balances and info
 final class TokenService {
     static let shared = TokenService()
 
-    private let web3Service: Web3Service
+    private var web3Service: Web3Service
 
     private init(web3Service: Web3Service = Web3Service()) {
         self.web3Service = web3Service
+    }
+
+    /// Switch the network for the service
+    func switchNetwork(_ network: Network) {
+        self.web3Service = Web3Service(network: network)
     }
 
     // MARK: - Token Balances
@@ -103,6 +110,101 @@ final class TokenService {
         let result = try await web3Service.call(to: address, data: "0x313ce567")
         let hex = result.replacingOccurrences(of: "0x", with: "")
         return Int(hex, radix: 16) ?? 18
+    }
+
+    // MARK: - Token Transfers
+
+    /// Build calldata for ERC-20 transfer
+    func buildTransferCalldata(to: String, amount: BigUInt) -> Data {
+        // transfer(address,uint256) selector: 0xa9059cbb
+        let selector = Data([0xa9, 0x05, 0x9c, 0xbb])
+        let toAddress = to.lowercased().replacingOccurrences(of: "0x", with: "").leftPadded(to: 64)
+        let amountHex = String(amount, radix: 16).leftPadded(to: 64)
+
+        var calldata = selector
+        if let toData = Data(hexString: toAddress) {
+            calldata.append(toData)
+        }
+        if let amountData = Data(hexString: amountHex) {
+            calldata.append(amountData)
+        }
+
+        return calldata
+    }
+
+    /// Transfer ERC-20 tokens
+    func transfer(
+        token: Token,
+        to: String,
+        amount: BigUInt,
+        from: String,
+        privateKey: Data
+    ) async throws -> String {
+        let calldata = buildTransferCalldata(to: to, amount: amount)
+
+        let transaction = try await web3Service.buildTransaction(
+            from: from,
+            to: token.address,
+            value: 0,
+            data: calldata
+        )
+
+        return try await web3Service.sendTransaction(transaction, privateKey: privateKey)
+    }
+
+    /// Estimate gas for token transfer
+    func estimateTransferGas(
+        token: Token,
+        to: String,
+        amount: BigUInt,
+        from: String
+    ) async throws -> GasEstimate {
+        let calldata = buildTransferCalldata(to: to, amount: amount)
+
+        let request = TransactionRequest(
+            from: from,
+            to: token.address,
+            value: 0,
+            data: calldata,
+            chainId: token.chainId
+        )
+
+        let gasLimit = try await web3Service.estimateGas(for: request)
+        let gasPrice = try await web3Service.getGasPrice()
+
+        return GasEstimate(
+            gasLimit: gasLimit,
+            maxFeePerGas: gasPrice,
+            maxPriorityFeePerGas: gasPrice / 10,
+            estimatedCost: gasLimit * gasPrice
+        )
+    }
+
+    /// Parse a token amount string to raw value (accounting for decimals)
+    func parseTokenAmount(_ amount: String, decimals: Int) -> BigUInt? {
+        let trimmed = amount.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return BigUInt(0) }
+
+        let components = trimmed.split(separator: ".")
+        guard components.count <= 2 else { return nil }
+
+        let wholePart = BigUInt(String(components[0])) ?? BigUInt(0)
+
+        let fractionalPart: BigUInt
+        if components.count == 2 {
+            var fractionalString = String(components[1])
+            if fractionalString.count > decimals {
+                fractionalString = String(fractionalString.prefix(decimals))
+            } else {
+                fractionalString += String(repeating: "0", count: decimals - fractionalString.count)
+            }
+            fractionalPart = BigUInt(fractionalString) ?? BigUInt(0)
+        } else {
+            fractionalPart = BigUInt(0)
+        }
+
+        let multiplier = BigUInt(10).power(decimals)
+        return wholePart * multiplier + fractionalPart
     }
 
     // MARK: - Helpers

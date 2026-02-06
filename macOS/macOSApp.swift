@@ -22,7 +22,9 @@ struct EthWalletApp: App {
                 .environmentObject(networkManager)
                 .environmentObject(priceService)
                 .environmentObject(wcService)
-                .frame(minWidth: 800, minHeight: 600)
+                .frame(minWidth: 360, minHeight: 640)
+                .preferredColorScheme(.dark)
+                .tint(Color(red: 0.765, green: 1.0, blue: 0.0)) // #c3ff00
                 .onAppear {
                     // Configure WalletConnect at app launch
                     wcService.configure()
@@ -121,7 +123,7 @@ struct WCRequestSheet: View {
             .padding()
             .navigationTitle("Signature Request")
         }
-        .frame(minWidth: 400, minHeight: 400)
+        .frame(minWidth: 320, minHeight: 320)
     }
 
     private var requestIcon: String {

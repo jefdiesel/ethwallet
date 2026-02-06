@@ -210,6 +210,7 @@ final class Web3Service {
     }
 
     /// Sign and send a transaction
+    /// If MEV protection is enabled and on Ethereum mainnet, routes through Flashbots
     func sendTransaction(
         _ transaction: CodableTransaction,
         privateKey: Data
@@ -240,7 +241,15 @@ final class Web3Service {
         print("[Web3] Encoded tx length: \(encoded.count) bytes")
         print("[Web3] Encoded tx: 0x\(encoded.toHexString().prefix(100))...")
 
-        // Send the transaction
+        // Check if MEV protection should be used
+        let mevService = MEVProtectionService.shared
+        if mevService.shouldUseMEVProtection(chainId: currentNetwork.id) {
+            print("[Web3] MEV protection enabled, routing through Flashbots...")
+            let hash = try await mevService.sendProtectedTransaction(rawTransaction: encoded)
+            return hash
+        }
+
+        // Send the transaction via standard RPC
         print("[Web3] Sending raw transaction to RPC...")
         let result = try await web3.eth.send(raw: encoded)
         print("[Web3] RPC returned hash: \(result.hash)")
@@ -332,7 +341,12 @@ final class Web3Service {
 
     /// Parse Ether string to Wei
     func parseEther(_ ether: String) throws -> BigUInt {
-        let components = ether.split(separator: ".")
+        let trimmed = ether.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else {
+            return 0
+        }
+
+        let components = trimmed.split(separator: ".")
 
         guard components.count <= 2 else {
             throw Web3ServiceError.invalidAmount

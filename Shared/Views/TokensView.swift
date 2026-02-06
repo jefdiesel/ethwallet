@@ -10,6 +10,7 @@ struct TokensView: View {
     @State private var isLoading = false
     @State private var error: String?
     @State private var showingAddToken = false
+    @State private var selectedToken: TokenBalance?
 
     private let tokenService = TokenService.shared
 
@@ -34,26 +35,25 @@ struct TokensView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // Chart panel (expands when token selected)
+            if let token = selectedToken {
+                chartPanel(for: token)
+            }
+
             // Header
             HStack {
                 Text("Tokens")
-                    .font(.headline)
-
+                    .font(.caption.weight(.semibold))
                 Spacer()
-
-                Button {
-                    showingAddToken = true
-                } label: {
-                    Image(systemName: "plus")
+                Button { showingAddToken = true } label: {
+                    Image(systemName: "plus").font(.caption)
                 }
-
-                Button {
-                    Task { await loadTokens() }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
+                Button { Task { await loadTokens() } } label: {
+                    Image(systemName: "arrow.clockwise").font(.caption)
                 }
             }
-            .padding()
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
 
             Divider()
 
@@ -63,7 +63,6 @@ struct TokensView: View {
             } else if let error = error {
                 errorView(error)
             } else {
-                // Always show token list (ETH is always present)
                 tokenList
             }
         }
@@ -78,6 +77,47 @@ struct TokensView: View {
         }
     }
 
+    // MARK: - Chart Panel
+
+    @ViewBuilder
+    private func chartPanel(for token: TokenBalance) -> some View {
+        VStack(spacing: 0) {
+            // Panel header
+            HStack {
+                Text(token.token.symbol)
+                    .font(.caption.bold())
+                Text(token.formattedBalance)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                if let usd = token.usdValue {
+                    Text("$\(usd, specifier: "%.2f")")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button { withAnimation(.easeInOut(duration: 0.2)) { selectedToken = nil } } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+
+            // Chart
+            TradingViewChart(
+                symbol: token.token.symbol.tradingViewSymbol,
+                interval: "D",
+                theme: "dark"
+            )
+            .frame(height: 200)
+
+            Divider()
+        }
+        .transition(.move(edge: .top).combined(with: .opacity))
+    }
+
     // MARK: - Token List
 
     @ViewBuilder
@@ -85,15 +125,19 @@ struct TokensView: View {
         ScrollView {
             LazyVStack(spacing: 0) {
                 // ETH always first
-                TokenRow(balance: ethTokenBalance)
-                Divider()
-                    .padding(.leading, 56)
+                Button { withAnimation(.easeInOut(duration: 0.2)) { selectedToken = ethTokenBalance } } label: {
+                    TokenRow(balance: ethTokenBalance)
+                }
+                .buttonStyle(.plain)
+                Divider().padding(.leading, 40)
 
                 // Other tokens with balance
                 ForEach(tokens.filter { $0.hasBalance }) { balance in
-                    TokenRow(balance: balance)
-                    Divider()
-                        .padding(.leading, 56)
+                    Button { withAnimation(.easeInOut(duration: 0.2)) { selectedToken = balance } } label: {
+                        TokenRow(balance: balance)
+                    }
+                    .buttonStyle(.plain)
+                    Divider().padding(.leading, 40)
                 }
 
                 // Show zero balances in a separate section
@@ -101,17 +145,19 @@ struct TokensView: View {
                 if !zeroBalances.isEmpty {
                     Section {
                         ForEach(zeroBalances) { balance in
-                            TokenRow(balance: balance)
-                            Divider()
-                                .padding(.leading, 56)
+                            Button { withAnimation(.easeInOut(duration: 0.2)) { selectedToken = balance } } label: {
+                                TokenRow(balance: balance)
+                            }
+                            .buttonStyle(.plain)
+                            Divider().padding(.leading, 40)
                         }
                     } header: {
                         Text("Zero Balances")
-                            .font(.caption)
+                            .font(.caption2)
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal)
-                            .padding(.top, 16)
+                            .padding(.horizontal, 10)
+                            .padding(.top, 8)
                     }
                 }
             }
@@ -204,43 +250,41 @@ struct TokenRow: View {
     let balance: TokenBalance
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 8) {
             // Token icon
             ZStack {
                 Circle()
                     .fill(Color.secondary.opacity(0.1))
-
                 Text(balance.token.symbol.prefix(2))
-                    .font(.caption.bold())
+                    .font(.caption2.bold())
             }
-            .frame(width: 40, height: 40)
+            .frame(width: 32, height: 32)
 
             // Token info
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text(balance.token.symbol)
-                    .font(.body.weight(.medium))
-
+                    .font(.caption.weight(.medium))
                 Text(balance.token.name)
-                    .font(.caption)
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
 
             Spacer()
 
             // Balance
-            VStack(alignment: .trailing, spacing: 2) {
+            VStack(alignment: .trailing, spacing: 1) {
                 Text(balance.formattedBalance)
-                    .font(.body.monospacedDigit())
-
+                    .font(.caption.monospacedDigit())
                 if let usdValue = balance.usdValue {
                     Text("$\(usdValue, specifier: "%.2f")")
-                        .font(.caption)
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
             }
         }
-        .padding(.horizontal)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
         .contentShape(Rectangle())
     }
 }
@@ -297,7 +341,7 @@ struct AddTokenSheet: View {
                 }
             }
         }
-        .frame(minWidth: 400, minHeight: 300)
+        .frame(minWidth: 320, minHeight: 260)
     }
 
     private func lookupToken() async {

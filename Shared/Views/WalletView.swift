@@ -52,7 +52,7 @@ struct WalletView: View {
             ReceiveView(account: viewModel.selectedAccount)
         }
         .sheet(isPresented: $showingSettings) {
-            SettingsView()
+            SettingsView(account: viewModel.selectedAccount)
         }
     }
 
@@ -61,73 +61,67 @@ struct WalletView: View {
     @ViewBuilder
     private var walletContent: some View {
         VStack(spacing: 0) {
-            if selectedTab != .browser {
-                // Account & Network selectors
-                HStack {
-                    AccountSwitcher(
-                        accounts: viewModel.wallet?.accounts ?? [],
-                        selectedAccount: $viewModel.selectedAccount
-                    )
+            // Account & Network selectors
+            HStack(spacing: 8) {
+                AccountSwitcher(
+                    accounts: viewModel.wallet?.accounts ?? [],
+                    selectedAccount: $viewModel.selectedAccount
+                )
 
-                    Spacer()
+                Spacer()
 
-                    NetworkSwitcher(selectedNetwork: $viewModel.selectedNetwork)
-                }
-                .padding()
-
-                Divider()
-
-                // Balance display
-                balanceSection
-                    .padding()
-
-                // Action buttons
-                actionButtons
-                    .padding()
-
-                Divider()
+                NetworkSwitcher(selectedNetwork: $viewModel.selectedNetwork)
             }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
 
-            // Tab view for different sections
-            TabView(selection: $selectedTab) {
+            Divider()
+
+            // Balance display
+            balanceSection
+                .padding(.vertical, 8)
+
+            // Action buttons
+            actionButtons
+                .padding(.bottom, 8)
+
+            // Tab picker
+            Picker("", selection: $selectedTab) {
+                Text("Tokens").tag(WalletTab.tokens)
+                Text("NFTs").tag(WalletTab.nfts)
+                Text("Ethscriptions").tag(WalletTab.ethscriptions)
+                Text("Connect").tag(WalletTab.connect)
+                Text("Browser").tag(WalletTab.browser)
+                Text("History").tag(WalletTab.history)
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 10)
+            .padding(.bottom, 6)
+
+            Divider()
+
+            // Content based on selection
+            switch selectedTab {
+            case .tokens:
                 TokensView(account: viewModel.selectedAccount, ethBalance: viewModel.balance, ethBalanceUSD: viewModel.balanceUSD)
-                    .tabItem {
-                        Label("Tokens", systemImage: "dollarsign.circle")
-                    }
-                    .tag(WalletTab.tokens)
-
+            case .nfts:
                 NFTsView(account: viewModel.selectedAccount)
-                    .tabItem {
-                        Label("NFTs", systemImage: "square.stack.3d.up")
-                    }
-                    .tag(WalletTab.nfts)
-
+            case .ethscriptions:
                 EthscriptionsView(account: viewModel.selectedAccount)
                     .environmentObject(viewModel)
-                    .tabItem {
-                        Label("Ethscriptions", systemImage: "photo.on.rectangle")
-                    }
-                    .tag(WalletTab.ethscriptions)
-
+            case .connect:
                 WalletConnectView()
                     .environmentObject(viewModel)
-                    .tabItem {
-                        Label("Connect", systemImage: "link")
-                    }
-                    .tag(WalletTab.connect)
-
+            case .browser:
                 BrowserView()
                     .environmentObject(viewModel)
-                    .tabItem {
-                        Label("Browser", systemImage: "globe")
-                    }
-                    .tag(WalletTab.browser)
-
-                TransactionHistoryView()
-                    .tabItem {
-                        Label("History", systemImage: "clock")
-                    }
-                    .tag(WalletTab.history)
+            case .history:
+                if let account = viewModel.selectedAccount {
+                    TransactionHistoryView(
+                        address: account.address,
+                        chainId: viewModel.selectedNetwork.id
+                    )
+                }
             }
         }
     }
@@ -136,42 +130,41 @@ struct WalletView: View {
 
     @ViewBuilder
     private var balanceSection: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 2) {
             Text("Total Balance")
-                .font(.subheadline)
+                .font(.caption)
                 .foregroundStyle(.secondary)
 
             Text(viewModel.balanceUSD)
-                .font(.system(size: 48, weight: .medium))
+                .font(.system(size: 28, weight: .semibold, design: .rounded))
         }
-        .frame(maxWidth: .infinity)
     }
 
     // MARK: - Action Buttons
 
     @ViewBuilder
     private var actionButtons: some View {
-        HStack(spacing: 20) {
+        HStack(spacing: 8) {
             Button {
                 showingSend = true
             } label: {
-                Label("Send", systemImage: "arrow.up.circle.fill")
+                Label("Send", systemImage: "arrow.up")
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.primary)
 
             Button {
                 showingReceive = true
             } label: {
-                Label("Receive", systemImage: "arrow.down.circle.fill")
+                Label("Receive", systemImage: "arrow.down")
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.secondary)
 
             Button {
                 Task { await viewModel.refreshBalance() }
             } label: {
-                Label("Refresh", systemImage: "arrow.clockwise")
+                Image(systemName: "arrow.clockwise")
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(IconButtonStyle())
         }
     }
 
@@ -190,12 +183,11 @@ struct WalletView: View {
 
     @ViewBuilder
     private var loadingView: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 12) {
             ProgressView()
-                .scaleEffect(1.5)
 
-            Text("Loading Wallet...")
-                .font(.headline)
+            Text("Loading...")
+                .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -231,10 +223,9 @@ struct WalletView: View {
                 Task { await viewModel.loadWallet() }
             } label: {
                 Label("Try Again", systemImage: "arrow.clockwise")
-                    .frame(maxWidth: 200)
+                    .frame(maxWidth: 160)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            .buttonStyle(.primary)
         }
         .padding()
     }
@@ -243,42 +234,39 @@ struct WalletView: View {
 
     @ViewBuilder
     private var onboardingView: some View {
-        VStack(spacing: 32) {
+        VStack(spacing: 20) {
             Spacer()
 
             Image(systemName: "wallet.pass.fill")
-                .font(.system(size: 80))
+                .font(.system(size: 48))
                 .foregroundStyle(.tint)
 
             Text("Welcome to EthWallet")
-                .font(.largeTitle)
-                .fontWeight(.bold)
+                .font(.title2)
+                .fontWeight(.semibold)
 
-            Text("Create a new wallet or import an existing one to get started.")
-                .font(.body)
+            Text("Create a new wallet or import an existing one.")
+                .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal)
 
-            VStack(spacing: 16) {
+            VStack(spacing: 8) {
                 Button {
                     showingCreateWallet = true
                 } label: {
                     Text("Create New Wallet")
-                        .frame(maxWidth: 280)
+                        .frame(width: 160)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+                .buttonStyle(.primary)
                 .disabled(viewModel.isLoading)
 
                 Button {
                     showingImportWallet = true
                 } label: {
-                    Text("Import Existing Wallet")
-                        .frame(maxWidth: 280)
+                    Text("Import Wallet")
+                        .frame(width: 160)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
+                .buttonStyle(.secondary)
                 .disabled(viewModel.isLoading)
             }
 
@@ -319,7 +307,7 @@ struct CreateWalletSheet: View {
             }
             #endif
         }
-        .frame(minWidth: 400, minHeight: 500)
+        .frame(minWidth: 320, minHeight: 380)
     }
 
     @ViewBuilder
@@ -350,14 +338,14 @@ struct CreateWalletSheet: View {
                     Text("Generate Wallet")
                 }
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.primary)
             .disabled(isCreating)
         }
     }
 
     @ViewBuilder
     private func backupView(mnemonic: String) -> some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 16) {
             Text("Backup Your Recovery Phrase")
                 .font(.headline)
 
@@ -389,7 +377,7 @@ struct CreateWalletSheet: View {
             Button("Continue") {
                 dismiss()
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.primary)
             .disabled(!hasConfirmedBackup)
         }
     }
@@ -467,7 +455,7 @@ struct ImportWalletSheet: View {
             }
             #endif
         }
-        .frame(minWidth: 400, minHeight: 400)
+        .frame(minWidth: 320, minHeight: 320)
     }
 
     @ViewBuilder
@@ -495,14 +483,14 @@ struct ImportWalletSheet: View {
                     Text("Import Wallet")
                 }
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.primary)
             .disabled(mnemonicInput.isEmpty || isImporting)
         }
     }
 
     @ViewBuilder
     private var privateKeyImportView: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             Text("Enter your private key (with or without 0x prefix)")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
@@ -521,7 +509,7 @@ struct ImportWalletSheet: View {
                     Text("Import Account")
                 }
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.primary)
             .disabled(privateKeyInput.isEmpty || isImporting)
         }
     }
@@ -562,20 +550,6 @@ struct ImportWalletSheet: View {
                 }
             }
         }
-    }
-}
-
-// MARK: - Transaction History View (Placeholder)
-
-struct TransactionHistoryView: View {
-    var body: some View {
-        VStack {
-            Text("Transaction History")
-                .font(.headline)
-            Text("Coming soon...")
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

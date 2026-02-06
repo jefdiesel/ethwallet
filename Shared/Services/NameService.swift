@@ -1,22 +1,33 @@
 import Foundation
 import CryptoKit
 
-/// Service for resolving Ethscription names to addresses
-/// Names are ethscriptions with content "data:,{name}"
-/// The owner of that ethscription owns the name
+/// Service for resolving Ethscription names and ENS names to addresses
+/// - Ethscription names: stored as ethscriptions with content "data:,{name}"
+/// - ENS names: resolved via ENS Registry on Ethereum mainnet
 final class NameService {
     static let shared = NameService()
 
     private let apiBaseURL = "https://api.ethscriptions.com/v2"
+    private let ensService = ENSService.shared
 
     private init() {}
 
     // MARK: - Name Resolution
 
-    /// Resolve an ethscription name to an Ethereum address
-    /// - Parameter name: The name to resolve (e.g., "alice" or "alice.eths")
+    /// Resolve a name to an Ethereum address
+    /// Supports both ENS names (.eth) and ethscription names (.eths or no suffix)
+    /// - Parameter name: The name to resolve (e.g., "vitalik.eth", "alice", or "alice.eths")
     /// - Returns: The resolved Ethereum address, or nil if not found
     func resolveAddress(for name: String) async throws -> String? {
+        // Try ENS first for .eth names
+        if ensService.isENSName(name) {
+            if let address = try await ensService.resolve(name) {
+                return address.lowercased()
+            }
+            return nil
+        }
+
+        // Fallback to ethscription name resolution
         let cleanName = normalizeName(name)
 
         // Create the content string: data:,{name}
@@ -101,7 +112,8 @@ final class NameService {
         return names
     }
 
-    /// Check if a string looks like an ethscription name (not an address)
+    /// Check if a string looks like a name to resolve (not an address)
+    /// Supports ENS names (.eth) and ethscription names (.eths or no suffix)
     func isEthscriptionName(_ input: String) -> Bool {
         let normalized = input.lowercased().trimmingCharacters(in: .whitespaces)
 
@@ -110,13 +122,28 @@ final class NameService {
             return false
         }
 
-        // Accept both "name" and "name.eths" formats
+        // Check if it's an ENS name
+        if ensService.isENSName(normalized) {
+            return true
+        }
+
+        // Accept both "name" and "name.eths" formats for ethscription names
         var name = normalized
         if name.hasSuffix(".eths") {
             name = String(name.dropLast(5))
         }
 
         return isValidName(name)
+    }
+
+    /// Check if a string is specifically an ENS name
+    func isENSName(_ input: String) -> Bool {
+        return ensService.isENSName(input)
+    }
+
+    /// Reverse lookup ENS name for an address
+    func resolveENSName(for address: String) async throws -> String? {
+        return try await ensService.reverseLookup(address)
     }
 
     /// Validate a name format

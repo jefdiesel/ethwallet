@@ -45,7 +45,7 @@ struct EthscriptionDetailView: View {
             }
             #endif
         }
-        .frame(minWidth: 450, minHeight: 600)
+        .frame(minWidth: 360, minHeight: 480)
         .sheet(isPresented: $showingTransfer) {
             TransferEthscriptionSheet(ethscription: ethscription)
                 .environmentObject(walletViewModel)
@@ -313,7 +313,7 @@ struct TransferEthscriptionSheet: View {
             }
             #endif
         }
-        .frame(minWidth: 400, minHeight: 350)
+        .frame(minWidth: 320, minHeight: 280)
     }
 
     @ViewBuilder
@@ -379,7 +379,7 @@ struct TransferEthscriptionSheet: View {
                 }
             }
             .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            .controlSize(.regular)
             .disabled(recipientAddress.isEmpty || !recipientAddress.isValidEthereumAddress || isTransferring)
         }
     }
