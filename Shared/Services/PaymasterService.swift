@@ -216,7 +216,9 @@ final class PaymasterService {
             throw PaymasterError.noAPIKey
         }
 
-        print("[Paymaster] RPC call: \(method)")
+        #if DEBUG
+        print("[Paymaster] RPC: \(method)")
+        #endif
 
         var request = URLRequest(url: paymasterURL)
         request.httpMethod = "POST"
@@ -231,16 +233,7 @@ final class PaymasterService {
 
         request.httpBody = try JSONSerialization.data(withJSONObject: rpcRequest)
 
-        // Log request
-        if let requestBody = String(data: request.httpBody!, encoding: .utf8) {
-            print("[Paymaster] Request:\n\(requestBody)")
-        }
-
         let (data, response) = try await URLSession.shared.data(for: request)
-
-        // Log response
-        let responseStr = String(data: data, encoding: .utf8) ?? "Unable to decode"
-        print("[Paymaster] Response: \(responseStr)")
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw PaymasterError.networkError("Invalid response")

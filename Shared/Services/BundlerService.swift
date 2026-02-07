@@ -47,11 +47,12 @@ final class BundlerService {
     func sendUserOperation(_ userOp: UserOperation) async throws -> String {
         let userOpDict = userOp.toRPCDict()
 
-        // Debug: print the UserOp being sent
+        #if DEBUG
         if let jsonData = try? JSONSerialization.data(withJSONObject: userOpDict, options: .prettyPrinted),
            let jsonString = String(data: jsonData, encoding: .utf8) {
             print("[Bundler] Sending UserOp:\n\(jsonString)")
         }
+        #endif
 
         let params: [Any] = [
             userOpDict,
@@ -220,7 +221,9 @@ final class BundlerService {
             throw BundlerError.noAPIKey
         }
 
-        print("[Bundler] RPC call: \(method)")
+        #if DEBUG
+        print("[Bundler] RPC: \(method)")
+        #endif
 
         var request = URLRequest(url: bundlerURL)
         request.httpMethod = "POST"
@@ -235,18 +238,7 @@ final class BundlerService {
 
         request.httpBody = try JSONSerialization.data(withJSONObject: rpcRequest)
 
-        // Log request body for debugging
-        if method == "eth_sendUserOperation" || method == "eth_estimateUserOperationGas" {
-            if let requestBody = String(data: request.httpBody!, encoding: .utf8) {
-                print("[Bundler] \(method) request:\n\(requestBody)")
-            }
-        }
-
         let (data, response) = try await URLSession.shared.data(for: request)
-
-        // Log response
-        let responseStr = String(data: data, encoding: .utf8) ?? "Unable to decode"
-        print("[Bundler] Response: \(responseStr)")
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw BundlerError.networkError("Invalid response")
@@ -264,7 +256,9 @@ final class BundlerService {
         if let error = json["error"] as? [String: Any] {
             let code = error["code"] as? Int ?? -1
             let message = error["message"] as? String ?? "Unknown error"
-            print("[Bundler] RPC Error: \(code) - \(message)")
+            #if DEBUG
+            print("[Bundler] Error: \(code) - \(message)")
+            #endif
             throw BundlerError.rpcError(code, message)
         }
 

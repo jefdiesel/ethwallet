@@ -219,60 +219,43 @@ final class SmartAccountService {
         calls: [UserOperationCall],
         privateKey: Data
     ) async throws -> String {
-        print("[SmartAccount] === EXECUTE START ===")
-        print("[SmartAccount] account: \(account.smartAccountAddress)")
-        print("[SmartAccount] owner: \(account.ownerAddress)")
-        print("[SmartAccount] isDeployed: \(account.isDeployed)")
-        print("[SmartAccount] calls count: \(calls.count)")
+        #if DEBUG
+        print("[SmartAccount] Execute: \(account.smartAccountAddress), \(calls.count) calls, deployed: \(account.isDeployed)")
+        #endif
 
         // Build the UserOperation (with estimation since no paymaster in this flow)
-        print("[SmartAccount] Building UserOperation...")
         var userOp = try await buildUserOperation(
             account: account,
             calls: calls,
             skipEstimation: false
         )
-        print("[SmartAccount] UserOperation built successfully")
 
         // Sign the UserOperation
-        print("[SmartAccount] Signing UserOperation...")
         userOp = try signUserOperation(userOp, privateKey: privateKey)
-        print("[SmartAccount] UserOperation signed successfully")
 
         // Send to bundler
-        print("[SmartAccount] Sending to bundler...")
         let userOpHash = try await bundlerService.sendUserOperation(userOp)
+        #if DEBUG
         print("[SmartAccount] Sent! Hash: \(userOpHash)")
+        #endif
 
         return userOpHash
     }
 
     /// Sign a UserOperation with the owner's private key
     func signUserOperation(_ userOp: UserOperation, privateKey: Data) throws -> UserOperation {
-        // Debug: print key info
+        #if DEBUG
         print("[SmartAccount] === SIGNING DEBUG ===")
-
         // Derive address from private key to verify it matches expected owner
         if let publicKey = SECP256K1.privateToPublic(privateKey: privateKey, compressed: false) {
-            // Skip first byte (0x04 prefix) and take keccak256 of remaining 64 bytes
             let publicKeyData = publicKey.dropFirst()
             let addressHash = publicKeyData.sha3(.keccak256)
             let signerAddress = "0x" + addressHash.suffix(20).map { String(format: "%02x", $0) }.joined()
-            print("[SmartAccount] signer address (from privateKey): \(signerAddress)")
+            print("[SmartAccount] signer address: \(signerAddress)")
         }
-
-        print("[SmartAccount] chainId: \(chainId)")
-        print("[SmartAccount] entryPoint: \(entryPointAddress)")
-        print("[SmartAccount] sender: \(userOp.sender)")
-        print("[SmartAccount] nonce: \(userOp.nonce)")
-        print("[SmartAccount] initCode length: \(userOp.initCode.count)")
-        print("[SmartAccount] callData length: \(userOp.callData.count)")
-        print("[SmartAccount] callGasLimit: \(userOp.callGasLimit)")
-        print("[SmartAccount] verificationGasLimit: \(userOp.verificationGasLimit)")
-        print("[SmartAccount] preVerificationGas: \(userOp.preVerificationGas)")
-        print("[SmartAccount] maxFeePerGas: \(userOp.maxFeePerGas)")
-        print("[SmartAccount] maxPriorityFeePerGas: \(userOp.maxPriorityFeePerGas)")
-        print("[SmartAccount] paymasterAndData length: \(userOp.paymasterAndData.count)")
+        print("[SmartAccount] chainId: \(chainId), sender: \(userOp.sender)")
+        print("[SmartAccount] nonce: \(userOp.nonce), initCode: \(userOp.initCode.count)B, callData: \(userOp.callData.count)B")
+        #endif
 
         // Compute the UserOperation hash (this is what EntryPoint.getUserOpHash returns)
         let userOpHash = userOp.hash(chainId: chainId, entryPoint: entryPointAddress)
@@ -284,9 +267,9 @@ final class SmartAccountService {
         }
         let messageHash = (prefixData + userOpHash).sha3(.keccak256)
 
-        // Debug: print hashes for troubleshooting
+        #if DEBUG
         print("[SmartAccount] userOpHash: 0x\(userOpHash.map { String(format: "%02x", $0) }.joined())")
-        print("[SmartAccount] messageHash (personal sign): 0x\(messageHash.map { String(format: "%02x", $0) }.joined())")
+        #endif
 
         let (serializedSignature, _) = SECP256K1.signForRecovery(hash: messageHash, privateKey: privateKey)
 
@@ -294,10 +277,10 @@ final class SmartAccountService {
             throw SmartAccountError.signatureFailed
         }
 
-        // Print signature components
-        print("[SmartAccount] signature (65 bytes): 0x\(signature.map { String(format: "%02x", $0) }.joined())")
+        #if DEBUG
         print("[SmartAccount] signature v: \(signature[64])")
         print("[SmartAccount] === END DEBUG ===")
+        #endif
 
         var signedOp = userOp
         signedOp.signature = signature

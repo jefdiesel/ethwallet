@@ -118,12 +118,10 @@ final class PhishingProtectionService {
         case 11155111:
             explorerAPI = "https://api-sepolia.etherscan.io/api"
         default:
-            print("[PhishingProtection] isContract: unsupported chain \(chainId)")
             return false // Can't check for unsupported chains
         }
 
         guard let url = URL(string: "\(explorerAPI)?module=proxy&action=eth_getCode&address=\(address)&tag=latest") else {
-            print("[PhishingProtection] isContract: invalid URL")
             return false
         }
 
@@ -131,16 +129,12 @@ final class PhishingProtectionService {
             let (data, _) = try await URLSession.shared.data(from: url)
             guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let result = json["result"] as? String else {
-                print("[PhishingProtection] isContract(\(address.prefix(10))): failed to parse JSON")
                 return false
             }
             // EOAs return "0x", contracts return actual bytecode starting with "0x"
             // Etherscan may return error messages like "You are using..." on rate limit
-            let hasCode = result.hasPrefix("0x") && result != "0x" && result.count > 2
-            print("[PhishingProtection] isContract(\(address.prefix(10))): code='\(result.prefix(10))...' hasCode=\(hasCode)")
-            return hasCode
+            return result.hasPrefix("0x") && result != "0x" && result.count > 2
         } catch {
-            print("[PhishingProtection] isContract(\(address.prefix(10))): error \(error.localizedDescription)")
             return false
         }
     }
@@ -149,9 +143,7 @@ final class PhishingProtectionService {
     func isContractVerified(_ address: String, chainId: Int = 1) async -> Bool {
         // First check if it's actually a contract
         let hasCode = await isContract(address, chainId: chainId)
-        print("[PhishingProtection] isContractVerified(\(address.prefix(10))): hasCode=\(hasCode)")
         if !hasCode {
-            print("[PhishingProtection] isContractVerified(\(address.prefix(10))): returning true (EOA)")
             return true // EOAs don't need verification - they're not contracts
         }
 
@@ -368,23 +360,88 @@ final class PhishingProtectionService {
         return normalized
     }
 
-    // MARK: - Persistence
+    // MARK: - Persistence (File-based to avoid UserDefaults 4MB limit)
+
+    private var cacheDirectory: URL? {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+    }
+
+    private var phishingCacheURL: URL? {
+        cacheDirectory?.appendingPathComponent("phishing_cache.json")
+    }
 
     private func loadCachedData() {
-        if let domains = UserDefaults.standard.stringArray(forKey: "phishingDomains") {
-            phishingDomains = Set(domains)
+        guard let cacheURL = phishingCacheURL else { return }
+
+        do {
+            let data = try Data(contentsOf: cacheURL)
+            let cache = try JSONDecoder().decode(PhishingCache.self, from: data)
+            phishingDomains = cache.phishingDomains
+            allowedDomains = cache.allowedDomains
+            lastFetchTime = cache.lastFetchTime
+            #if DEBUG
+            print("[PhishingProtection] Loaded \(phishingDomains.count) domains from file cache")
+            #endif
+        } catch {
+            // No cache or corrupted - will fetch fresh
+            #if DEBUG
+            print("[PhishingProtection] No cache found, will fetch fresh")
+            #endif
         }
-        if let allowed = UserDefaults.standard.stringArray(forKey: "allowedDomains") {
-            allowedDomains = Set(allowed)
+
+        // Migrate from UserDefaults if exists (one-time migration)
+        migrateFromUserDefaults()
+    }
+
+    private func migrateFromUserDefaults() {
+        if let domains = UserDefaults.standard.stringArray(forKey: "phishingDomains"), !domains.isEmpty {
+            if phishingDomains.isEmpty {
+                phishingDomains = Set(domains)
+                if let allowed = UserDefaults.standard.stringArray(forKey: "allowedDomains") {
+                    allowedDomains = Set(allowed)
+                }
+                lastFetchTime = UserDefaults.standard.object(forKey: "phishingListFetchTime") as? Date
+                saveCachedData()
+            }
+            // Clear UserDefaults after migration
+            UserDefaults.standard.removeObject(forKey: "phishingDomains")
+            UserDefaults.standard.removeObject(forKey: "allowedDomains")
+            UserDefaults.standard.removeObject(forKey: "phishingListFetchTime")
+            #if DEBUG
+            print("[PhishingProtection] Migrated from UserDefaults to file cache")
+            #endif
         }
-        lastFetchTime = UserDefaults.standard.object(forKey: "phishingListFetchTime") as? Date
     }
 
     private func saveCachedData() {
-        UserDefaults.standard.set(Array(phishingDomains), forKey: "phishingDomains")
-        UserDefaults.standard.set(Array(allowedDomains), forKey: "allowedDomains")
-        UserDefaults.standard.set(lastFetchTime, forKey: "phishingListFetchTime")
+        guard let cacheURL = phishingCacheURL else { return }
+
+        let cache = PhishingCache(
+            phishingDomains: phishingDomains,
+            allowedDomains: allowedDomains,
+            lastFetchTime: lastFetchTime
+        )
+
+        do {
+            let data = try JSONEncoder().encode(cache)
+            try data.write(to: cacheURL, options: .atomic)
+            #if DEBUG
+            print("[PhishingProtection] Saved \(phishingDomains.count) domains to file cache")
+            #endif
+        } catch {
+            #if DEBUG
+            print("[PhishingProtection] Failed to save cache: \(error)")
+            #endif
+        }
     }
+}
+
+// MARK: - Cache Model
+
+private struct PhishingCache: Codable {
+    let phishingDomains: Set<String>
+    let allowedDomains: Set<String>
+    let lastFetchTime: Date?
 }
 
 // MARK: - Security Warning Types

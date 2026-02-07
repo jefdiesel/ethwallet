@@ -553,16 +553,12 @@ final class SendViewModel: ObservableObject {
         to: String,
         privateKey: Data
     ) async throws -> String {
-        print("[SendVM] === SMART ACCOUNT SEND ===")
-        print("[SendVM] smartAccount: \(smartAccount.smartAccountAddress)")
-        print("[SendVM] owner: \(smartAccount.ownerAddress)")
-        print("[SendVM] to: \(to)")
-        print("[SendVM] amount: \(amount)")
-        print("[SendVM] usePaymaster: \(usePaymaster)")
+        #if DEBUG
+        print("[SendVM] Smart account send: \(smartAccount.smartAccountAddress) -> \(to), amount: \(amount), paymaster: \(usePaymaster)")
+        #endif
 
         guard let service = smartAccountService,
               let bundler = bundlerService else {
-            print("[SendVM] ERROR: Service not initialized")
             throw SendError.smartAccountServiceNotInitialized
         }
 
@@ -594,35 +590,28 @@ final class SendViewModel: ObservableObject {
             calls.append(UserOperationCall(to: to, value: 0, data: data))
         }
 
-        // Build UserOperation
-        // Skip gas estimation if using paymaster (paymaster endpoint will provide gas values)
-        print("[SendVM] Building UserOperation (skipEstimation: \(usePaymaster))...")
+        // Build UserOperation (skip gas estimation if using paymaster)
         var userOp = try await service.buildUserOperation(
             account: smartAccount,
             calls: calls,
             skipEstimation: usePaymaster
         )
-        print("[SendVM] UserOperation built")
 
         // Apply paymaster if enabled
         if usePaymaster, let paymaster = paymasterService {
-            print("[SendVM] Applying paymaster with .sponsored mode...")
             userOp = try await paymaster.buildSponsoredUserOperation(
                 from: userOp,
-                mode: .sponsored  // Always use sponsored when usePaymaster is true
+                mode: .sponsored
             )
-            print("[SendVM] Paymaster applied, paymasterAndData length: \(userOp.paymasterAndData.count)")
         }
 
-        // Sign the UserOperation
-        print("[SendVM] Signing...")
+        // Sign and send
         userOp = try service.signUserOperation(userOp, privateKey: privateKey)
-        print("[SendVM] Signed")
-
-        // Send to bundler
-        print("[SendVM] Sending to bundler...")
         let userOpHash = try await bundler.sendUserOperation(userOp)
+
+        #if DEBUG
         print("[SendVM] Success! Hash: \(userOpHash)")
+        #endif
         userOperationHash = userOpHash
 
         return userOpHash
