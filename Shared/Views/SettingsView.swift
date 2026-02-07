@@ -16,7 +16,9 @@ struct SettingsView: View {
     @State private var showingApprovals = false
     @State private var showingSmartAccountUpgrade = false
     @State private var showingAPIKeySheet = false
+    @State private var showingAlchemyKeySheet = false
     @State private var pimlicoAPIKey = ""
+    @State private var alchemyAPIKey = ""
 
     @AppStorage("showTestnets") private var showTestnets = true
     @AppStorage("defaultNetwork") private var defaultNetworkId = 1
@@ -79,6 +81,16 @@ struct SettingsView: View {
                 onCancel: { showingAPIKeySheet = false }
             )
         }
+        .sheet(isPresented: $showingAlchemyKeySheet) {
+            AlchemyAPIKeySheet(
+                apiKey: $alchemyAPIKey,
+                onSave: {
+                    showingAlchemyKeySheet = false
+                    networkManager.refreshNetworkRPCs()
+                },
+                onCancel: { showingAlchemyKeySheet = false }
+            )
+        }
     }
 
     // MARK: - Network Section
@@ -117,14 +129,53 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                         Spacer()
                         if networkManager.latency > 0 {
-                            Text("\(Int(networkManager.latency))ms")
+                            Text("\(Int(networkManager.latency * 1000))ms")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
+                        Button {
+                            networkManager.refreshNetworkRPCs()
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .help("Refresh RPC connection")
+                    }
+                }
+
+                Divider().padding(.leading, 16)
+
+                // Alchemy API Key
+                SettingsRow {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Alchemy API Key")
+                            if hasAlchemyKey {
+                                Text("Configured")
+                                    .font(.caption)
+                                    .foregroundStyle(.green)
+                            } else {
+                                Text("Using public RPC (may be slow)")
+                                    .font(.caption)
+                                    .foregroundStyle(.orange)
+                            }
+                        }
+                        Spacer()
+                        Button(hasAlchemyKey ? "Change" : "Add Key") {
+                            showingAlchemyKeySheet = true
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
                     }
                 }
             }
         }
+    }
+
+    private var hasAlchemyKey: Bool {
+        KeychainService.shared.retrieveAPIKey(for: "alchemy") != nil
     }
 
     // MARK: - Smart Account Section
@@ -675,6 +726,75 @@ struct PimlicoAPIKeySheet: View {
     private func saveAPIKey() {
         do {
             try viewModel.setPimlicoAPIKey(apiKey)
+            apiKey = ""
+            onSave()
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+}
+
+// MARK: - Alchemy API Key Sheet
+
+struct AlchemyAPIKeySheet: View {
+    @Binding var apiKey: String
+
+    var onSave: () -> Void
+    var onCancel: () -> Void
+
+    @State private var error: String?
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 20) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("ALCHEMY API KEY")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.secondary)
+
+                    TextField("Enter API Key", text: $apiKey)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
+                }
+
+                Text("Free tier includes 300M compute units/month - plenty for personal use.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Link(destination: URL(string: "https://dashboard.alchemy.com")!) {
+                    HStack {
+                        Image(systemName: "arrow.up.right.square")
+                        Text("Get Free API Key from Alchemy")
+                    }
+                }
+
+                if let error = error {
+                    Text(error)
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                }
+
+                Spacer()
+            }
+            .padding(24)
+            .navigationTitle("Alchemy Setup")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { onCancel() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") { saveAPIKey() }
+                        .disabled(apiKey.isEmpty)
+                }
+            }
+        }
+        .frame(minWidth: 360, minHeight: 280)
+    }
+
+    private func saveAPIKey() {
+        do {
+            try KeychainService.shared.storeAPIKey(apiKey, for: "alchemy")
             apiKey = ""
             onSave()
         } catch {

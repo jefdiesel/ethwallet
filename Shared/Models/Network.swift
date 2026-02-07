@@ -29,9 +29,13 @@ struct Network: Identifiable, Codable, Hashable {
         switch chainId {
         case 1: // Ethereum
             if let key = alchemyKey {
-                return URL(string: "https://eth-mainnet.g.alchemy.com/v2/\(key)")!
+                let url = URL(string: "https://eth-mainnet.g.alchemy.com/v2/\(key)")!
+                print("[Network] Using Alchemy RPC for Ethereum")
+                return url
             }
-            return URL(string: "https://eth.llamarpc.com")! // Public fallback
+            print("[Network] No Alchemy key found, using public RPC")
+            // Cloudflare public RPC - doesn't require API key
+            return URL(string: "https://cloudflare-eth.com")!
         case 11155111: // Sepolia
             if let key = alchemyKey {
                 return URL(string: "https://eth-sepolia.g.alchemy.com/v2/\(key)")!
@@ -40,7 +44,7 @@ struct Network: Identifiable, Codable, Hashable {
         case 8453: // Base
             return URL(string: "https://mainnet.base.org")!
         default:
-            return URL(string: "https://eth.llamarpc.com")!
+            return URL(string: "https://cloudflare-eth.com")!
         }
     }
 

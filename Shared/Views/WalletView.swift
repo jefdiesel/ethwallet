@@ -19,11 +19,17 @@ class BrowserWindowManager {
         self.walletViewModel = walletViewModel
     }
 
+    private var browserViewModel: BrowserViewModel?
+
     func openBrowser(url: URL? = nil) {
         guard let walletVM = walletViewModel else { return }
 
         if let window = browserWindow, window.isVisible {
             window.makeKeyAndOrderFront(nil)
+            // Navigate to URL if provided
+            if let url = url {
+                browserViewModel?.navigate(to: url.absoluteString)
+            }
             return
         }
 
@@ -36,8 +42,12 @@ class BrowserWindowManager {
         window.title = "Web Browser"
         window.center()
 
+        // Create BrowserViewModel so we can navigate programmatically
+        let browserVM = BrowserViewModel()
+        self.browserViewModel = browserVM
+
         let contentView = HStack(spacing: 0) {
-            BrowserView()
+            BrowserView(viewModel: browserVM)
                 .environmentObject(walletVM)
                 .frame(minWidth: 600)
             Divider()
@@ -51,6 +61,11 @@ class BrowserWindowManager {
         window.contentView = NSHostingView(rootView: contentView)
         window.makeKeyAndOrderFront(nil)
         browserWindow = window
+
+        // Navigate to URL after window is open
+        if let url = url {
+            browserVM.navigate(to: url.absoluteString)
+        }
     }
 
     func openURL(_ url: URL) {
@@ -69,6 +84,9 @@ struct WalletView: View {
     @State private var showingReceive = false
     @State private var showingSettings = false
     @State private var selectedTab: WalletTab = .tokens
+    @State private var showingAPIKeyWarning = false
+
+    @AppStorage("dismissedAlchemyWarning") private var dismissedAlchemyWarning = false
 
     enum WalletTab: Hashable {
         case tokens, nfts, ethscriptions, connect, history
@@ -109,6 +127,33 @@ struct WalletView: View {
                 smartAccount: viewModel.smartAccountViewModel.getSmartAccount(for: viewModel.selectedAccount ?? Account(index: 0, address: "")),
                 isSmartAccountEnabled: viewModel.smartAccountViewModel.isSmartAccountEnabled
             )
+        }
+        .alert("RPC Configuration Recommended", isPresented: $showingAPIKeyWarning) {
+            Button("Open Settings") {
+                showingSettings = true
+            }
+            Button("Remind Me Later", role: .cancel) {}
+            Button("Don't Show Again") {
+                dismissedAlchemyWarning = true
+            }
+        } message: {
+            Text("Add a free Alchemy API key for reliable network access. Without it, you may experience slow or failed requests.")
+        }
+        .onAppear {
+            checkAlchemyKey()
+        }
+    }
+
+    private func checkAlchemyKey() {
+        // Only show warning if wallet exists, key not configured, and not dismissed
+        guard viewModel.wallet != nil,
+              !dismissedAlchemyWarning,
+              KeychainService.shared.retrieveAPIKey(for: "alchemy") == nil else {
+            return
+        }
+        // Delay slightly so the view is fully loaded
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            showingAPIKeyWarning = true
         }
     }
 

@@ -44,6 +44,28 @@ final class NetworkManager: ObservableObject {
         checkHealth()
     }
 
+    /// Refresh all network RPC URLs from current configuration
+    /// Call this after updating API keys or if connections fail
+    func refreshNetworkRPCs() {
+        // Rebuild the default networks with current RPC URLs
+        let currentSelectedId = selectedNetwork.id
+
+        // Reset to fresh defaults (which will query Keychain for API keys)
+        networks = Network.defaults
+
+        // Restore custom networks
+        if let customNetworks = Self.loadCustomNetworks() {
+            networks.append(contentsOf: customNetworks)
+        }
+
+        // Re-select the current network to get fresh RPC URL
+        if let refreshedNetwork = networks.first(where: { $0.id == currentSelectedId }) {
+            selectedNetwork = refreshedNetwork
+        }
+
+        checkHealth()
+    }
+
     /// Select network by chain ID
     func selectNetwork(chainId: Int) {
         guard let network = networks.first(where: { $0.id == chainId }) else { return }
