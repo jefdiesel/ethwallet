@@ -20,36 +20,66 @@ struct Network: Identifiable, Codable, Hashable {
         return id == 1 // Only Ethereum mainnet
     }
 
+    // MARK: - RPC URL Helpers
+
+    /// Get RPC URL with API key from Keychain if available
+    static func rpcURL(for chainId: Int) -> URL {
+        let alchemyKey = KeychainService.shared.retrieveAPIKey(for: "alchemy")
+
+        switch chainId {
+        case 1: // Ethereum
+            if let key = alchemyKey {
+                return URL(string: "https://eth-mainnet.g.alchemy.com/v2/\(key)")!
+            }
+            return URL(string: "https://eth.llamarpc.com")! // Public fallback
+        case 11155111: // Sepolia
+            if let key = alchemyKey {
+                return URL(string: "https://eth-sepolia.g.alchemy.com/v2/\(key)")!
+            }
+            return URL(string: "https://ethereum-sepolia-rpc.publicnode.com")!
+        case 8453: // Base
+            return URL(string: "https://mainnet.base.org")!
+        default:
+            return URL(string: "https://eth.llamarpc.com")!
+        }
+    }
+
     // MARK: - Default Networks
 
-    static let ethereum = Network(
-        id: 1,
-        name: "Ethereum",
-        rpcURL: URL(string: "https://eth-mainnet.g.alchemy.com/v2/aLBw6VuSaJyufMkS2zgEZ")!,
-        currencySymbol: "ETH",
-        explorerURL: URL(string: "https://etherscan.io"),
-        isTestnet: false
-    )
+    static var ethereum: Network {
+        Network(
+            id: 1,
+            name: "Ethereum",
+            rpcURL: rpcURL(for: 1),
+            currencySymbol: "ETH",
+            explorerURL: URL(string: "https://etherscan.io"),
+            isTestnet: false
+        )
+    }
 
-    static let sepolia = Network(
-        id: 11155111,
-        name: "Sepolia",
-        rpcURL: URL(string: "https://ethereum-sepolia-rpc.publicnode.com")!,
-        currencySymbol: "ETH",
-        explorerURL: URL(string: "https://sepolia.etherscan.io"),
-        isTestnet: true
-    )
+    static var sepolia: Network {
+        Network(
+            id: 11155111,
+            name: "Sepolia",
+            rpcURL: rpcURL(for: 11155111),
+            currencySymbol: "ETH",
+            explorerURL: URL(string: "https://sepolia.etherscan.io"),
+            isTestnet: true
+        )
+    }
 
-    static let base = Network(
-        id: 8453,
-        name: "Base",
-        rpcURL: URL(string: "https://mainnet.base.org")!,
-        currencySymbol: "ETH",
-        explorerURL: URL(string: "https://basescan.org"),
-        isTestnet: false
-    )
+    static var base: Network {
+        Network(
+            id: 8453,
+            name: "Base",
+            rpcURL: rpcURL(for: 8453),
+            currencySymbol: "ETH",
+            explorerURL: URL(string: "https://basescan.org"),
+            isTestnet: false
+        )
+    }
 
-    static let defaults: [Network] = [.ethereum, .sepolia, .base]
+    static var defaults: [Network] { [.ethereum, .sepolia, .base] }
 
     /// Get network for a specific chain ID
     static func forChainId(_ chainId: Int) -> Network? {
