@@ -83,6 +83,8 @@
 		ERC4337001VWMDL000000001 /* SmartAccountViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ERC4337002VWMDL000000001 /* SmartAccountViewModel.swift */; };
 		ERC4337001VIEWS000000001 /* SmartAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ERC4337002VIEWS000000001 /* SmartAccountView.swift */; };
 		ERC4337001VIEWS000000002 /* AccountUpgradeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ERC4337002VIEWS000000002 /* AccountUpgradeView.swift */; };
+		RATELIMIT01UTILS00000001 /* RateLimiter.swift in Sources */ = {isa = PBXBuildFile; fileRef = RATELIMIT02UTILS00000001 /* RateLimiter.swift */; };
+		DEBUGLOG001UTILS00000001 /* DebugLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEBUGLOG002UTILS00000001 /* DebugLog.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -162,6 +164,8 @@
 		ERC4337002VWMDL000000001 /* SmartAccountViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartAccountViewModel.swift; sourceTree = "<group>"; };
 		ERC4337002VIEWS000000001 /* SmartAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartAccountView.swift; sourceTree = "<group>"; };
 		ERC4337002VIEWS000000002 /* AccountUpgradeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountUpgradeView.swift; sourceTree = "<group>"; };
+		RATELIMIT02UTILS00000001 /* RateLimiter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RateLimiter.swift; sourceTree = "<group>"; };
+		DEBUGLOG002UTILS00000001 /* DebugLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugLog.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -282,7 +286,9 @@
 			children = (
 				F0000002DDDDDDDD00000001 /* ABIEncoder.swift */,
 				F0000002DDDDDDDD00000002 /* DataURIEncoder.swift */,
+				DEBUGLOG002UTILS00000001 /* DebugLog.swift */,
 				F0000002DDDDDDDD00000003 /* HexUtils.swift */,
+				RATELIMIT02UTILS00000001 /* RateLimiter.swift */,
 				ERC4337002UTILS000000001 /* UserOperationEncoder.swift */,
 			);
 			path = Utilities;
@@ -477,6 +483,8 @@
 				ERC4337001VWMDL000000001 /* SmartAccountViewModel.swift in Sources */,
 				ERC4337001VIEWS000000001 /* SmartAccountView.swift in Sources */,
 				ERC4337001VIEWS000000002 /* AccountUpgradeView.swift in Sources */,
+				RATELIMIT01UTILS00000001 /* RateLimiter.swift in Sources */,
+				DEBUGLOG001UTILS00000001 /* DebugLog.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
