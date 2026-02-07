@@ -22,7 +22,7 @@ Add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/your-org/EthscriptionNames.git", from: "1.0.0")
+    .package(url: "https://github.com/jefdiesel/EthscriptionNames.git", from: "1.0.0")
 ]
 ```
 
@@ -57,6 +57,62 @@ let tx = try EthscriptionNameTransaction.claim("myname", from: myAddress)
 2. **Identity**: The SHA-256 hash of the content uniquely identifies the name
 3. **First-come-first-serve**: Only the first valid inscription counts
 4. **Transferable**: Names can be transferred like any ethscription
+
+### Case Sensitivity & URL Compatibility
+
+Ethscription names are **case-insensitive** and **URL-safe by design**.
+
+While the protocol technically allows inscribing `Name`, `NAME`, or `NaMe` as separate ethscriptions (they produce different SHA-256 hashes), this library normalizes all names to **lowercase** for consistency:
+
+```swift
+try EthscriptionName("Alice")   // → "alice"
+try EthscriptionName("ALICE")   // → "alice"
+try EthscriptionName("aLiCe")   // → "alice"
+```
+
+**Why lowercase?**
+
+- **URL compatibility**: Names can be used in URLs like `https://app.example.com/alice.eths` without encoding issues
+- **User experience**: Users don't need to remember exact casing
+- **Collision prevention**: `Alice` and `alice` resolve to the same owner
+- **Convention**: Follows DNS and ENS precedent where domains are case-insensitive
+
+**Important**: If you inscribe `data:,Alice` on-chain, this library will NOT find it when searching for "alice" because the SHA-256 hashes differ. Always inscribe lowercase names for maximum compatibility.
+
+### SHA-256 Fingerprinting
+
+Every Ethscription name has a unique fingerprint computed from its content. This hash is used to look up names in the protocol.
+
+```swift
+let name = try EthscriptionName("alice")
+
+// The content that gets inscribed
+name.contentURI   // "data:,alice"
+
+// SHA-256 hash of the content (the "fingerprint")
+name.contentHash  // "0x9f4c3b5a..." (64 hex chars)
+```
+
+**How it works:**
+
+1. Build the content string: `data:,{name}`
+2. Encode as UTF-8 bytes
+3. Compute SHA-256 hash
+4. Prefix with `0x`
+
+```
+"alice" → "data:,alice" → SHA256 → 0x9f4c3b5a...
+"bob"   → "data:,bob"   → SHA256 → 0x2c8f91d7...
+"Alice" → "data:,Alice" → SHA256 → 0x7b3e2f1a...  // Different hash!
+```
+
+The hash serves as the unique identifier for API lookups:
+
+```
+GET https://api.ethscriptions.com/v2/ethscriptions/exists/0x9f4c3b5a...
+```
+
+This returns the ethscription details including the `current_owner` - whoever owns the name.
 
 ### Creating a Name
 
