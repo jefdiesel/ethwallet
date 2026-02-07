@@ -4,9 +4,12 @@ import UniformTypeIdentifiers
 /// View for creating new ethscriptions
 struct CreateEthscriptionView: View {
     let account: Account?
+    var smartAccount: SmartAccount? = nil
+    var isSmartAccountEnabled: Bool = false
 
     @StateObject private var viewModel = CreateViewModel()
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var networkManager = NetworkManager.shared
 
     @State private var showingFilePicker = false
     @State private var showingConfirmation = false
@@ -23,6 +26,11 @@ struct CreateEthscriptionView: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                }
+
+                // From account selector (if smart account available)
+                if isSmartAccountEnabled && viewModel.canUseSmartAccount {
+                    fromAccountSection
                 }
 
                 // Content input
@@ -76,7 +84,8 @@ struct CreateEthscriptionView: View {
         }
         .sheet(isPresented: $showingSuccess) {
             CreateSuccessSheet(
-                txHash: viewModel.lastTransactionHash ?? "",
+                txHash: viewModel.lastTransactionHash ?? viewModel.userOperationHash ?? "",
+                isUserOperation: viewModel.userOperationHash != nil,
                 onDone: {
                     viewModel.reset()
                     dismiss()
@@ -86,6 +95,12 @@ struct CreateEthscriptionView: View {
         .onAppear {
             if let account = account {
                 viewModel.configure(account: account)
+
+                if isSmartAccountEnabled, let smartAccount = smartAccount {
+                    viewModel.configureSmartAccount(smartAccount: smartAccount)
+                    viewModel.useSmartAccount = true
+                    viewModel.usePaymaster = true
+                }
             }
         }
     }
@@ -177,6 +192,83 @@ struct CreateEthscriptionView: View {
                         .font(.caption)
                         .foregroundStyle(.red)
                 }
+            }
+        }
+    }
+
+    // MARK: - From Account Section
+
+    @ViewBuilder
+    private var fromAccountSection: some View {
+        Section("Inscribe From") {
+            // EOA option
+            Button {
+                viewModel.useSmartAccount = false
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: viewModel.useSmartAccount ? "circle" : "checkmark.circle.fill")
+                        .foregroundColor(viewModel.useSmartAccount ? .secondary : .blue)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Regular Wallet (EOA)")
+                        Text(account?.shortAddress ?? "")
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    if !viewModel.useSmartAccount {
+                        Text(viewModel.displayBalance)
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+
+            // Smart Account option
+            Button {
+                viewModel.useSmartAccount = true
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: viewModel.useSmartAccount ? "checkmark.circle.fill" : "circle")
+                        .foregroundColor(viewModel.useSmartAccount ? .blue : .secondary)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "shield.checkered")
+                                .font(.caption)
+                            Text("Smart Account")
+                        }
+                        if let sa = viewModel.smartAccount {
+                            Text(sa.shortAddress)
+                                .font(.caption.monospaced())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    Spacer()
+
+                    if viewModel.useSmartAccount {
+                        Text(viewModel.displayBalance)
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+
+            // Gasless option
+            if viewModel.useSmartAccount {
+                Toggle(isOn: $viewModel.usePaymaster) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "gift")
+                            .foregroundStyle(.green)
+                        Text("Gasless (Sponsored)")
+                    }
+                }
+                .disabled(!viewModel.isPaymasterAvailable)
             }
         }
     }
@@ -438,6 +530,7 @@ struct CreateConfirmationSheet: View {
 
 struct CreateSuccessSheet: View {
     let txHash: String
+    var isUserOperation: Bool = false
     var onDone: () -> Void
 
     @StateObject private var networkManager = NetworkManager.shared
@@ -452,12 +545,25 @@ struct CreateSuccessSheet: View {
                 .font(.title)
                 .fontWeight(.semibold)
 
-            Text("Your ethscription is being confirmed on the blockchain.")
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+            if isUserOperation {
+                HStack(spacing: 6) {
+                    Image(systemName: "shield.checkered")
+                    Text("Smart Account Transaction")
+                }
+                .font(.callout)
+                .foregroundStyle(.blue)
+
+                Text("Your ethscription is being bundled and will appear on-chain shortly.")
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            } else {
+                Text("Your ethscription is being confirmed on the blockchain.")
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
 
             VStack(spacing: 4) {
-                Text("Transaction Hash")
+                Text(isUserOperation ? "UserOperation Hash" : "Transaction Hash")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -471,7 +577,7 @@ struct CreateSuccessSheet: View {
             .background(Color.secondary.opacity(0.1))
             .cornerRadius(8)
 
-            if let explorerURL = networkManager.selectedNetwork.explorerTransactionURL(txHash) {
+            if !isUserOperation, let explorerURL = networkManager.selectedNetwork.explorerTransactionURL(txHash) {
                 Link(destination: explorerURL) {
                     Label("View on Explorer", systemImage: "arrow.up.right.square")
                 }

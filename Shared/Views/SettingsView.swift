@@ -2,11 +2,13 @@ import SwiftUI
 
 /// Settings view for wallet configuration
 struct SettingsView: View {
-    var account: Account? = nil
-    @ObservedObject var smartAccountViewModel: SmartAccountViewModel = SmartAccountViewModel()
+    @EnvironmentObject var walletViewModel: WalletViewModel
 
     @Environment(\.dismiss) private var dismiss
     @StateObject private var networkManager = NetworkManager.shared
+
+    private var account: Account? { walletViewModel.selectedAccount }
+    private var smartAccountViewModel: SmartAccountViewModel { walletViewModel.smartAccountViewModel }
 
     @State private var showingDeleteConfirmation = false
     @State private var showingExportWarning = false
@@ -130,99 +132,163 @@ struct SettingsView: View {
     private var smartAccountSection: some View {
         SettingsSection(title: "Smart Account (ERC-4337)") {
             VStack(spacing: 0) {
-                if let account = account, let smartAccount = smartAccountViewModel.getSmartAccount(for: account) {
-                    SettingsRow {
-                        HStack {
-                            Text("Address")
-                            Spacer()
-                            Text(smartAccount.shortAddress)
-                                .font(.system(.body, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    Divider().padding(.leading, 16)
-
-                    SettingsRow {
-                        HStack {
-                            Text("Status")
-                            Spacer()
-                            HStack(spacing: 6) {
-                                Circle()
-                                    .fill(smartAccount.isDeployed ? .green : .orange)
-                                    .frame(width: 8, height: 8)
-                                Text(smartAccount.isDeployed ? "Active" : "Not Deployed")
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-
-                    Divider().padding(.leading, 16)
-
-                    SettingsRow {
-                        Toggle("Gasless Transactions", isOn: $smartAccountViewModel.usePaymaster)
-                            .disabled(!smartAccountViewModel.isPaymasterAvailable)
-                    }
-
-                } else if smartAccountViewModel.isBundlerAvailable && account != nil {
-                    SettingsRow {
-                        Button {
-                            showingSmartAccountUpgrade = true
-                        } label: {
-                            HStack {
-                                Label("Upgrade to Smart Account", systemImage: "sparkles")
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.caption)
-                                    .foregroundStyle(.tertiary)
-                            }
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                    }
-                } else if account == nil {
-                    SettingsRow {
-                        Text("Select an account to upgrade")
-                            .foregroundStyle(.secondary)
-                    }
+                // Global enable/disable toggle
+                SettingsRow {
+                    Toggle("Enable Smart Account Features", isOn: $walletViewModel.smartAccountViewModel.isSmartAccountEnabled)
                 }
 
-                if smartAccountViewModel.hasPimlicoAPIKey {
-                    Divider().padding(.leading, 16)
+                Divider().padding(.leading, 16)
 
+                if !smartAccountViewModel.isSmartAccountEnabled {
                     SettingsRow {
-                        HStack {
-                            Text("Pimlico API")
-                            Spacer()
-                            Text(smartAccountViewModel.maskedAPIKey ?? "Configured")
-                                .font(.system(.caption, design: .monospaced))
+                        Text("Smart account features are disabled. Enable above to use ERC-4337 account abstraction.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    // Smart account content when enabled
+                    if let account = account, let smartAccount = smartAccountViewModel.getSmartAccount(for: account) {
+                        // Address with copy button
+                        SettingsRow {
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Text("Address")
+                                    Spacer()
+                                    HStack(spacing: 6) {
+                                        Circle()
+                                            .fill(smartAccount.isDeployed ? .green : .orange)
+                                            .frame(width: 8, height: 8)
+                                        Text(smartAccount.isDeployed ? "Active" : "Not Deployed")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+
+                                HStack {
+                                    Text(smartAccount.smartAccountAddress)
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+
+                                    Spacer()
+
+                                    Button {
+                                        NSPasteboard.general.clearContents()
+                                        NSPasteboard.general.setString(smartAccount.smartAccountAddress, forType: .string)
+                                    } label: {
+                                        Image(systemName: "doc.on.doc")
+                                            .font(.caption)
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+                                }
+                            }
+                        }
+
+                        // Funding instructions if not deployed
+                        if !smartAccount.isDeployed {
+                            Divider().padding(.leading, 16)
+
+                            SettingsRow {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "info.circle.fill")
+                                            .foregroundStyle(.blue)
+                                        Text("Fund to Activate")
+                                            .font(.subheadline)
+                                            .fontWeight(.medium)
+                                    }
+
+                                    Text("Send ETH to the address above. The smart account will deploy automatically with your first transaction.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+
+                        Divider().padding(.leading, 16)
+
+                        SettingsRow {
+                            Toggle("Gasless Transactions", isOn: $walletViewModel.smartAccountViewModel.usePaymaster)
+                                .disabled(!smartAccountViewModel.isPaymasterAvailable)
+                        }
+
+                    } else if account != nil {
+                        if smartAccountViewModel.isBundlerAvailable {
+                            SettingsRow {
+                                Button {
+                                    showingSmartAccountUpgrade = true
+                                } label: {
+                                    HStack {
+                                        Label("Upgrade to Smart Account", systemImage: "sparkles")
+                                        Spacer()
+                                        Image(systemName: "chevron.right")
+                                            .font(.caption)
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        } else if !smartAccountViewModel.hasPimlicoAPIKey {
+                            SettingsRow {
+                                Text("Configure Pimlico API key below to enable smart accounts")
+                                    .foregroundStyle(.secondary)
+                                    .font(.callout)
+                            }
+                        } else {
+                            SettingsRow {
+                                Text("Smart accounts not available on this network")
+                                    .foregroundStyle(.secondary)
+                                    .font(.callout)
+                            }
+                        }
+                    } else {
+                        SettingsRow {
+                            Text("Select an account to upgrade")
                                 .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    // API Key section (always shown when enabled)
+                    if smartAccountViewModel.hasPimlicoAPIKey {
+                        Divider().padding(.leading, 16)
+
+                        SettingsRow {
+                            HStack {
+                                Text("Pimlico API")
+                                Spacer()
+                                Text(smartAccountViewModel.maskedAPIKey ?? "Configured")
+                                    .font(.system(.caption, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                Button {
+                                    showingAPIKeySheet = true
+                                } label: {
+                                    Image(systemName: "pencil.circle.fill")
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    } else {
+                        Divider().padding(.leading, 16)
+
+                        SettingsRow {
                             Button {
                                 showingAPIKeySheet = true
                             } label: {
-                                Image(systemName: "pencil.circle.fill")
-                                    .foregroundStyle(.secondary)
+                                HStack {
+                                    Label("Configure Pimlico API Key", systemImage: "key.fill")
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption)
+                                        .foregroundStyle(.tertiary)
+                                }
+                                .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                         }
-                    }
-                } else {
-                    Divider().padding(.leading, 16)
-
-                    SettingsRow {
-                        Button {
-                            showingAPIKeySheet = true
-                        } label: {
-                            HStack {
-                                Label("Configure Pimlico API Key", systemImage: "key.fill")
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.caption)
-                                    .foregroundStyle(.tertiary)
-                            }
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -619,4 +685,5 @@ struct PimlicoAPIKeySheet: View {
 
 #Preview {
     SettingsView()
+        .environmentObject(WalletViewModel())
 }

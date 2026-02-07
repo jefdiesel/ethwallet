@@ -45,9 +45,17 @@ final class BundlerService {
     /// - Parameter userOp: The signed UserOperation
     /// - Returns: UserOperation hash
     func sendUserOperation(_ userOp: UserOperation) async throws -> String {
+        let userOpDict = userOp.toRPCDict()
+
+        // Debug: print the UserOp being sent
+        if let jsonData = try? JSONSerialization.data(withJSONObject: userOpDict, options: .prettyPrinted),
+           let jsonString = String(data: jsonData, encoding: .utf8) {
+            print("[Bundler] Sending UserOp:\n\(jsonString)")
+        }
+
         let params: [Any] = [
-            userOp.toRPCDict(),
-            ERC4337Constants.entryPointV07
+            userOpDict,
+            ERC4337Constants.entryPoint
         ]
 
         let result = try await rpcCall(method: "eth_sendUserOperation", params: params)
@@ -108,7 +116,7 @@ final class BundlerService {
     func estimateUserOperationGas(_ userOp: UserOperation) async throws -> UserOperationGasEstimate {
         let params: [Any] = [
             userOp.toRPCDict(),
-            ERC4337Constants.entryPointV07
+            ERC4337Constants.entryPoint
         ]
 
         let result = try await rpcCall(method: "eth_estimateUserOperationGas", params: params)
@@ -212,6 +220,8 @@ final class BundlerService {
             throw BundlerError.noAPIKey
         }
 
+        print("[Bundler] RPC call: \(method)")
+
         var request = URLRequest(url: bundlerURL)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -225,7 +235,18 @@ final class BundlerService {
 
         request.httpBody = try JSONSerialization.data(withJSONObject: rpcRequest)
 
+        // Log request body for debugging
+        if method == "eth_sendUserOperation" || method == "eth_estimateUserOperationGas" {
+            if let requestBody = String(data: request.httpBody!, encoding: .utf8) {
+                print("[Bundler] \(method) request:\n\(requestBody)")
+            }
+        }
+
         let (data, response) = try await URLSession.shared.data(for: request)
+
+        // Log response
+        let responseStr = String(data: data, encoding: .utf8) ?? "Unable to decode"
+        print("[Bundler] Response: \(responseStr)")
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw BundlerError.networkError("Invalid response")
@@ -243,6 +264,7 @@ final class BundlerService {
         if let error = json["error"] as? [String: Any] {
             let code = error["code"] as? Int ?? -1
             let message = error["message"] as? String ?? "Unknown error"
+            print("[Bundler] RPC Error: \(code) - \(message)")
             throw BundlerError.rpcError(code, message)
         }
 

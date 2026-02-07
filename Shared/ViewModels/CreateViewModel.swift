@@ -2,6 +2,7 @@ import Foundation
 import Combine
 import web3swift
 import Web3Core
+import BigInt
 
 /// View model for creating ethscriptions
 @MainActor
@@ -21,8 +22,8 @@ final class CreateViewModel: ObservableObject {
     }
     @Published var inscribeToSelf: Bool = true {
         didSet {
-            if inscribeToSelf, let account = account {
-                recipientAddress = account.address
+            if inscribeToSelf {
+                recipientAddress = currentFromAddress
             }
         }
     }
@@ -47,11 +48,33 @@ final class CreateViewModel: ObservableObject {
     @Published private(set) var createError: String?
     @Published private(set) var lastTransactionHash: String?
 
+    // Smart account support
+    @Published var useSmartAccount: Bool = false {
+        didSet {
+            if inscribeToSelf {
+                recipientAddress = currentFromAddress
+            }
+            Task { await refreshBalance() }
+        }
+    }
+    @Published var smartAccount: SmartAccount?
+    @Published var usePaymaster: Bool = false
+    @Published private(set) var userOperationHash: String?
+
+    // Balance display
+    @Published private(set) var displayBalance: String = "0"
+    @Published private(set) var isLoadingBalance: Bool = false
+
     // MARK: - Dependencies
 
     private let web3Service: Web3Service
     private let ethscriptionService: EthscriptionService
     private let keychainService: KeychainService
+
+    // Smart account services
+    private var smartAccountService: SmartAccountService?
+    private var bundlerService: BundlerService?
+    private var paymasterService: PaymasterService?
 
     private var account: Account?
     private var cancellables = Set<AnyCancellable>()
@@ -59,11 +82,15 @@ final class CreateViewModel: ObservableObject {
     // MARK: - Initialization
 
     init(
-        web3Service: Web3Service = Web3Service(),
         keychainService: KeychainService = .shared
     ) {
-        self.web3Service = web3Service
-        self.ethscriptionService = EthscriptionService(web3Service: web3Service)
+        // Use the current network from NetworkManager
+        let network = NetworkManager.shared.selectedNetwork
+        let web3 = Web3Service()
+        web3.switchNetwork(network)
+
+        self.web3Service = web3
+        self.ethscriptionService = EthscriptionService(web3Service: web3)
         self.keychainService = keychainService
 
         setupBindings()
@@ -98,6 +125,68 @@ final class CreateViewModel: ObservableObject {
             recipientAddress = account.address
         }
         validateRecipient()
+        Task { await refreshBalance() }
+    }
+
+    /// Configure smart account support
+    func configureSmartAccount(smartAccount: SmartAccount?) {
+        self.smartAccount = smartAccount
+
+        if let smartAccount = smartAccount {
+            let chainId = web3Service.network.id
+            bundlerService = BundlerService(chainId: chainId)
+            paymasterService = PaymasterService(chainId: chainId)
+
+            if let bundler = bundlerService {
+                smartAccountService = SmartAccountService(
+                    web3Service: web3Service,
+                    bundlerService: bundler,
+                    chainId: chainId
+                )
+            }
+        } else {
+            bundlerService = nil
+            paymasterService = nil
+            smartAccountService = nil
+            useSmartAccount = false
+        }
+    }
+
+    /// Check if smart account is available
+    var canUseSmartAccount: Bool {
+        smartAccount != nil && smartAccountService != nil
+    }
+
+    /// Check if paymaster is available
+    var isPaymasterAvailable: Bool {
+        paymasterService?.isAvailable ?? false
+    }
+
+    /// The address that will be used as "from"
+    var currentFromAddress: String {
+        if useSmartAccount, let sa = smartAccount {
+            return sa.smartAccountAddress
+        }
+        return account?.address ?? ""
+    }
+
+    // MARK: - Balance
+
+    func refreshBalance() async {
+        isLoadingBalance = true
+        defer { isLoadingBalance = false }
+
+        let address = currentFromAddress
+        guard !address.isEmpty else {
+            displayBalance = "0"
+            return
+        }
+
+        do {
+            displayBalance = try await web3Service.getFormattedBalance(for: address)
+        } catch {
+            displayBalance = "Error"
+        }
     }
 
     // MARK: - Validation
@@ -236,6 +325,7 @@ final class CreateViewModel: ObservableObject {
         isCreating = true
         createError = nil
         lastTransactionHash = nil
+        userOperationHash = nil
 
         defer { isCreating = false }
 
@@ -261,6 +351,18 @@ final class CreateViewModel: ObservableObject {
 
             let (content, mimeType) = getCurrentContent()
 
+            // Use smart account if enabled
+            if useSmartAccount, let smartAccount = smartAccount, let smartAccountService = smartAccountService {
+                return try await createViaSmartAccount(
+                    content: content,
+                    mimeType: mimeType,
+                    smartAccount: smartAccount,
+                    smartAccountService: smartAccountService,
+                    privateKey: privateKey
+                )
+            }
+
+            // Regular EOA transaction
             let txHash: String
             if useRawMode && contentType == .text {
                 // Raw mode: send text directly as calldata without data URI encoding
@@ -290,6 +392,63 @@ final class CreateViewModel: ObservableObject {
         }
     }
 
+    /// Create ethscription via smart account
+    private func createViaSmartAccount(
+        content: Data,
+        mimeType: String,
+        smartAccount: SmartAccount,
+        smartAccountService: SmartAccountService,
+        privateKey: Data
+    ) async throws -> String {
+        guard let bundler = bundlerService else {
+            throw CreateError.transactionFailed("Bundler service not initialized")
+        }
+
+        // Build the calldata for the inscription
+        let calldata: Data
+        if useRawMode && contentType == .text {
+            calldata = content
+        } else {
+            calldata = ethscriptionService.buildEthscriptionCalldata(
+                content: content,
+                mimeType: mimeType,
+                allowDuplicate: allowDuplicate,
+                compress: useCompression
+            )
+        }
+
+        // Create UserOperation call
+        let call = UserOperationCall(
+            to: recipientAddress,
+            value: 0,
+            data: calldata
+        )
+
+        // Build UserOperation
+        var userOp = try await smartAccountService.buildUserOperation(
+            account: smartAccount,
+            calls: [call]
+        )
+
+        // Apply paymaster if enabled
+        if usePaymaster, let paymaster = paymasterService {
+            userOp = try await paymaster.buildSponsoredUserOperation(
+                from: userOp,
+                mode: .sponsored
+            )
+        }
+
+        // Sign the UserOperation
+        userOp = try smartAccountService.signUserOperation(userOp, privateKey: privateKey)
+
+        // Send to bundler
+        let userOpHash = try await bundler.sendUserOperation(userOp)
+
+        userOperationHash = userOpHash
+        lastTransactionHash = userOpHash
+        return userOpHash
+    }
+
     /// Reset form
     func reset() {
         textContent = ""
@@ -301,9 +460,10 @@ final class CreateViewModel: ObservableObject {
         gasEstimate = nil
         createError = nil
         lastTransactionHash = nil
+        userOperationHash = nil
 
-        if inscribeToSelf, let account = account {
-            recipientAddress = account.address
+        if inscribeToSelf {
+            recipientAddress = currentFromAddress
         }
     }
 

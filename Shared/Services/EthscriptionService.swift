@@ -67,6 +67,33 @@ final class EthscriptionService {
         return try await web3Service.sendTransaction(transaction, privateKey: privateKey)
     }
 
+    /// Build ethscription calldata without sending
+    /// - Parameters:
+    ///   - content: The raw content data
+    ///   - mimeType: MIME type of the content
+    ///   - allowDuplicate: Allow duplicate content (ESIP-6)
+    ///   - compress: Use gzip compression (ESIP-7)
+    /// - Returns: Calldata bytes for the ethscription
+    func buildEthscriptionCalldata(
+        content: Data,
+        mimeType: String,
+        allowDuplicate: Bool = false,
+        compress: Bool = false
+    ) -> Data {
+        do {
+            let calldata = try DataURIEncoder.encodeToCalldata(
+                content: content,
+                mimeType: mimeType,
+                allowDuplicate: allowDuplicate,
+                compress: compress
+            )
+            return HexUtils.decode(calldata) ?? content
+        } catch {
+            // Fallback to raw content if encoding fails
+            return content
+        }
+    }
+
     /// Create an ethscription from a file URL
     func createEthscriptionFromFile(
         fileURL: URL,

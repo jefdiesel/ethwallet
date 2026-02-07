@@ -1,4 +1,5 @@
 import SwiftUI
+import BigInt
 
 /// Grid view of owned ethscriptions
 struct EthscriptionsView: View {
@@ -197,6 +198,19 @@ struct EthscriptionsView: View {
 
     @State private var createText = ""
     @State private var isCreating = false
+    @State private var useSmartAccountForCreate = false
+    @State private var usePaymasterForCreate = true
+
+    private var smartAccount: SmartAccount? {
+        guard let account = account else { return nil }
+        return walletViewModel.smartAccountViewModel.getSmartAccount(for: account)
+    }
+
+    private var canUseSmartAccountForCreate: Bool {
+        walletViewModel.smartAccountViewModel.isSmartAccountEnabled &&
+        smartAccount != nil &&
+        walletViewModel.smartAccountViewModel.isBundlerAvailable
+    }
 
     @ViewBuilder
     private var createPanel: some View {
@@ -225,12 +239,43 @@ struct EthscriptionsView: View {
 
                     TextEditor(text: $createText)
                         .font(.body.monospaced())
-                        .frame(height: 150)
+                        .frame(height: 120)
                         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.3)))
 
                     Text("\(createText.utf8.count) bytes")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
+
+                    // Smart account toggle
+                    if canUseSmartAccountForCreate {
+                        VStack(spacing: 8) {
+                            Divider()
+
+                            Toggle(isOn: $useSmartAccountForCreate) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "shield.checkered")
+                                        .font(.caption)
+                                    Text("Use Smart Account")
+                                        .font(.caption)
+                                }
+                            }
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+
+                            if useSmartAccountForCreate {
+                                Toggle(isOn: $usePaymasterForCreate) {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "gift")
+                                            .font(.caption)
+                                        Text("Gasless")
+                                            .font(.caption)
+                                    }
+                                }
+                                .toggleStyle(.switch)
+                                .controlSize(.small)
+                            }
+                        }
+                    }
 
                     Button {
                         createInscription()
@@ -258,14 +303,31 @@ struct EthscriptionsView: View {
         Task {
             do {
                 let privateKey = try await walletViewModel.getPrivateKey(for: account)
-                let ethscriptionService = EthscriptionService(web3Service: Web3Service())
-                let _ = try await ethscriptionService.createEthscription(
-                    content: createText.data(using: .utf8) ?? Data(),
-                    mimeType: "text/plain",
-                    recipient: account.address,
-                    from: account.address,
-                    privateKey: privateKey
-                )
+
+                // Use current network
+                let network = NetworkManager.shared.selectedNetwork
+                let web3 = Web3Service()
+                web3.switchNetwork(network)
+                let ethscriptionService = EthscriptionService(web3Service: web3)
+
+                if useSmartAccountForCreate, let smartAccount = smartAccount {
+                    // Create via smart account
+                    try await createViaSmartAccount(
+                        ethscriptionService: ethscriptionService,
+                        smartAccount: smartAccount,
+                        privateKey: privateKey
+                    )
+                } else {
+                    // Create via EOA
+                    let _ = try await ethscriptionService.createEthscription(
+                        content: createText.data(using: .utf8) ?? Data(),
+                        mimeType: "text/plain",
+                        recipient: account.address,
+                        from: account.address,
+                        privateKey: privateKey
+                    )
+                }
+
                 await MainActor.run {
                     isCreating = false
                     showingCreate = false
@@ -278,6 +340,57 @@ struct EthscriptionsView: View {
                 }
             }
         }
+    }
+
+    private func createViaSmartAccount(
+        ethscriptionService: EthscriptionService,
+        smartAccount: SmartAccount,
+        privateKey: Data
+    ) async throws {
+        let network = NetworkManager.shared.selectedNetwork
+        let web3 = Web3Service()
+        web3.switchNetwork(network)
+
+        let bundlerService = BundlerService(chainId: network.id)
+        let smartAccountService = SmartAccountService(
+            web3Service: web3,
+            bundlerService: bundlerService,
+            chainId: network.id
+        )
+
+        // Build calldata
+        let calldata = ethscriptionService.buildEthscriptionCalldata(
+            content: createText.data(using: .utf8) ?? Data(),
+            mimeType: "text/plain",
+            allowDuplicate: false,
+            compress: false
+        )
+
+        // Inscribe to smart account address
+        let call = UserOperationCall(
+            to: smartAccount.smartAccountAddress,
+            value: 0,
+            data: calldata
+        )
+
+        // Build UserOperation
+        var userOp = try await smartAccountService.buildUserOperation(
+            account: smartAccount,
+            calls: [call]
+        )
+
+        // Apply paymaster if enabled
+        if usePaymasterForCreate {
+            let paymasterService = PaymasterService(chainId: network.id)
+            userOp = try await paymasterService.buildSponsoredUserOperation(
+                from: userOp,
+                mode: .sponsored
+            )
+        }
+
+        // Sign and send
+        userOp = try smartAccountService.signUserOperation(userOp, privateKey: privateKey)
+        let _ = try await bundlerService.sendUserOperation(userOp)
     }
 
     // MARK: - Grid

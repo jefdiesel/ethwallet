@@ -64,7 +64,8 @@ struct WalletView: View {
     @EnvironmentObject var viewModel: WalletViewModel
     @State private var showingCreateWallet = false
     @State private var showingImportWallet = false
-    @State private var showingSend = false
+    @State private var showingSendInline = false
+    @State private var showingSendSheet = false
     @State private var showingReceive = false
     @State private var showingSettings = false
     @State private var selectedTab: WalletTab = .tokens
@@ -79,7 +80,7 @@ struct WalletView: View {
         Group {
             if viewModel.isLoading {
                 loadingView
-            } else if showingSend {
+            } else if showingSendInline {
                 sendPanel
             } else if showingReceive {
                 receivePanel
@@ -99,7 +100,15 @@ struct WalletView: View {
             ImportWalletSheet(viewModel: viewModel)
         }
         .sheet(isPresented: $showingSettings) {
-            SettingsView(account: viewModel.selectedAccount, smartAccountViewModel: viewModel.smartAccountViewModel)
+            SettingsView()
+                .environmentObject(viewModel)
+        }
+        .sheet(isPresented: $showingSendSheet) {
+            SendView(
+                account: viewModel.selectedAccount,
+                smartAccount: viewModel.smartAccountViewModel.getSmartAccount(for: viewModel.selectedAccount ?? Account(index: 0, address: "")),
+                isSmartAccountEnabled: viewModel.smartAccountViewModel.isSmartAccountEnabled
+            )
         }
     }
 
@@ -116,6 +125,14 @@ struct WalletView: View {
                 )
                 Spacer()
                 NetworkSwitcher(selectedNetwork: $viewModel.selectedNetwork)
+
+                Button {
+                    showingSettings = true
+                } label: {
+                    Image(systemName: "gear")
+                        .font(.caption)
+                }
+                .buttonStyle(IconButtonStyle())
             }
             .padding(.horizontal, 8)
             .padding(.top, 4)
@@ -133,7 +150,7 @@ struct WalletView: View {
 
                 Spacer()
 
-                Button { showingSend = true } label: {
+                Button { showingSendSheet = true } label: {
                     Label("Send", systemImage: "arrow.up")
                         .font(.caption.weight(.semibold))
                 }
@@ -213,7 +230,7 @@ struct WalletView: View {
     private var actionButtons: some View {
         HStack(spacing: 8) {
             Button {
-                showingSend = true
+                showingSendSheet = true
             } label: {
                 Label("Send", systemImage: "arrow.up")
             }
@@ -261,7 +278,7 @@ struct WalletView: View {
             // Header with back button
             HStack {
                 Button { withAnimation(.easeInOut(duration: 0.15)) {
-                    showingSend = false
+                    showingSendInline = false
                     sendRecipient = ""
                     sendAmount = ""
                     sendError = nil
@@ -300,7 +317,7 @@ struct WalletView: View {
 
                     Button("Done") {
                         withAnimation(.easeInOut(duration: 0.15)) {
-                            showingSend = false
+                            showingSendInline = false
                             sendRecipient = ""
                             sendAmount = ""
                             sendError = nil

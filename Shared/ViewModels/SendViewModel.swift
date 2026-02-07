@@ -44,11 +44,19 @@ final class SendViewModel: ObservableObject {
     @Published private(set) var lastTransactionHash: String?
 
     // Smart account support
-    @Published var useSmartAccount: Bool = false
+    @Published var useSmartAccount: Bool = false {
+        didSet {
+            Task { await refreshBalance() }
+        }
+    }
     @Published var smartAccount: SmartAccount?
     @Published var usePaymaster: Bool = false
     @Published var paymasterMode: PaymasterMode = .none
     @Published private(set) var userOperationHash: String?  // For tracking smart account tx
+
+    // Balance display
+    @Published private(set) var displayBalance: String = "0"
+    @Published private(set) var isLoadingBalance: Bool = false
 
     // MARK: - Dependencies
 
@@ -72,14 +80,18 @@ final class SendViewModel: ObservableObject {
     // MARK: - Initialization
 
     init(
-        web3Service: Web3Service = Web3Service(),
         keychainService: KeychainService = .shared,
         priceService: PriceService = .shared,
         nameService: NameService = .shared,
         tokenService: TokenService = .shared
     ) {
-        self.web3Service = web3Service
-        self.ethscriptionService = EthscriptionService(web3Service: web3Service)
+        // Use the current network from NetworkManager
+        let network = NetworkManager.shared.selectedNetwork
+        let web3 = Web3Service()
+        web3.switchNetwork(network)
+
+        self.web3Service = web3
+        self.ethscriptionService = EthscriptionService(web3Service: web3)
         self.keychainService = keychainService
         self.priceService = priceService
         self.nameService = nameService
@@ -105,13 +117,11 @@ final class SendViewModel: ObservableObject {
     func configure(account: Account, balance: BigUInt) {
         self.account = account
         self.availableBalance = balance
+        Task { await refreshBalance() }
     }
 
     /// Configure smart account support
-    func configureSmartAccount(
-        smartAccount: SmartAccount?,
-        web3Service: Web3Service
-    ) {
+    func configureSmartAccount(smartAccount: SmartAccount?) {
         self.smartAccount = smartAccount
 
         if let smartAccount = smartAccount {
@@ -132,6 +142,49 @@ final class SendViewModel: ObservableObject {
             smartAccountService = nil
             useSmartAccount = false
         }
+    }
+
+    // MARK: - Balance
+
+    /// Refresh the balance for the current "from" address
+    func refreshBalance() async {
+        isLoadingBalance = true
+        defer { isLoadingBalance = false }
+
+        let address: String
+        if useSmartAccount, let sa = smartAccount {
+            address = sa.smartAccountAddress
+        } else if let acc = account {
+            address = acc.address
+        } else {
+            displayBalance = "0"
+            availableBalance = 0
+            return
+        }
+
+        do {
+            let balanceString = try await web3Service.getFormattedBalance(for: address)
+            displayBalance = balanceString
+
+            // Also update availableBalance for validation
+            if let balance = try? await web3Service.getBalance(for: address) {
+                availableBalance = balance
+            }
+        } catch {
+            displayBalance = "Error"
+            availableBalance = 0
+        }
+
+        // Re-validate amount with new balance
+        validateAmount()
+    }
+
+    /// The address funds will be sent FROM
+    var fromAddress: String {
+        if useSmartAccount, let sa = smartAccount {
+            return sa.smartAccountAddress
+        }
+        return account?.address ?? ""
     }
 
     /// Check if smart account sending is available
@@ -162,15 +215,12 @@ final class SendViewModel: ObservableObject {
 
         // Check if it's a valid Ethereum address
         if HexUtils.isValidAddress(recipientAddress) {
-            // Validate checksum if address has mixed case
-            if !HexUtils.isValidChecksumAddress(recipientAddress) {
-                recipientError = "Invalid address checksum - please verify the address"
-                isValidRecipient = false
-                isResolvingName = false
-                return
-            }
-
             resolvedAddress = recipientAddress
+
+            // Validate checksum - only warn, don't block
+            if !HexUtils.isValidChecksumAddress(recipientAddress) {
+                recipientError = "Warning: Address checksum may be invalid - verify before sending"
+            }
 
             // Check if sending to self (warning only)
             if recipientAddress.lowercased() == account?.address.lowercased() {
@@ -181,7 +231,7 @@ final class SendViewModel: ObservableObject {
             isResolvingName = false
 
             // Check for security warnings asynchronously
-            Task {
+            Task { @MainActor in
                 await checkRecipientSecurity(recipientAddress)
             }
             return
@@ -305,19 +355,20 @@ final class SendViewModel: ObservableObject {
 
     // MARK: - Security Check
 
+    @MainActor
     private func checkRecipientSecurity(_ address: String) async {
-        await MainActor.run {
-            self.isCheckingSecurity = true
-            self.securityWarnings = []
+        isCheckingSecurity = true
+        securityWarnings = []
+
+        do {
+            let chainId = web3Service.network.id
+            let warnings = await PhishingProtectionService.shared.checkRecipient(address, chainId: chainId)
+            securityWarnings = warnings
+        } catch {
+            // Silently ignore security check failures
         }
 
-        let chainId = web3Service.network.id
-        let warnings = await PhishingProtectionService.shared.checkRecipient(address, chainId: chainId)
-
-        await MainActor.run {
-            self.securityWarnings = warnings
-            self.isCheckingSecurity = false
-        }
+        isCheckingSecurity = false
     }
 
     // MARK: - Gas Estimation
@@ -502,8 +553,16 @@ final class SendViewModel: ObservableObject {
         to: String,
         privateKey: Data
     ) async throws -> String {
+        print("[SendVM] === SMART ACCOUNT SEND ===")
+        print("[SendVM] smartAccount: \(smartAccount.smartAccountAddress)")
+        print("[SendVM] owner: \(smartAccount.ownerAddress)")
+        print("[SendVM] to: \(to)")
+        print("[SendVM] amount: \(amount)")
+        print("[SendVM] usePaymaster: \(usePaymaster)")
+
         guard let service = smartAccountService,
               let bundler = bundlerService else {
+            print("[SendVM] ERROR: Service not initialized")
             throw SendError.smartAccountServiceNotInitialized
         }
 
@@ -536,24 +595,34 @@ final class SendViewModel: ObservableObject {
         }
 
         // Build UserOperation
+        // Skip gas estimation if using paymaster (paymaster endpoint will provide gas values)
+        print("[SendVM] Building UserOperation (skipEstimation: \(usePaymaster))...")
         var userOp = try await service.buildUserOperation(
             account: smartAccount,
-            calls: calls
+            calls: calls,
+            skipEstimation: usePaymaster
         )
+        print("[SendVM] UserOperation built")
 
         // Apply paymaster if enabled
         if usePaymaster, let paymaster = paymasterService {
+            print("[SendVM] Applying paymaster with .sponsored mode...")
             userOp = try await paymaster.buildSponsoredUserOperation(
                 from: userOp,
-                mode: paymasterMode
+                mode: .sponsored  // Always use sponsored when usePaymaster is true
             )
+            print("[SendVM] Paymaster applied, paymasterAndData length: \(userOp.paymasterAndData.count)")
         }
 
         // Sign the UserOperation
+        print("[SendVM] Signing...")
         userOp = try service.signUserOperation(userOp, privateKey: privateKey)
+        print("[SendVM] Signed")
 
         // Send to bundler
+        print("[SendVM] Sending to bundler...")
         let userOpHash = try await bundler.sendUserOperation(userOp)
+        print("[SendVM] Success! Hash: \(userOpHash)")
         userOperationHash = userOpHash
 
         return userOpHash

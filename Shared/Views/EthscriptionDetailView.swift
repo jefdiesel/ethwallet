@@ -293,6 +293,22 @@ struct TransferEthscriptionSheet: View {
     @State private var isTransferring = false
     @State private var error: String?
     @State private var txHash: String?
+    @State private var useSmartAccount = false
+    @State private var usePaymaster = true
+    @State private var isUserOperation = false
+
+    private var smartAccount: SmartAccount? {
+        guard let account = walletViewModel.selectedAccount else { return nil }
+        return walletViewModel.smartAccountViewModel.getSmartAccount(for: account)
+    }
+
+    private var isSmartAccountEnabled: Bool {
+        walletViewModel.smartAccountViewModel.isSmartAccountEnabled
+    }
+
+    private var canUseSmartAccount: Bool {
+        isSmartAccountEnabled && smartAccount != nil && walletViewModel.smartAccountViewModel.isBundlerAvailable
+    }
 
     var body: some View {
         NavigationStack {
@@ -357,6 +373,32 @@ struct TransferEthscriptionSheet: View {
                 TextField("0x...", text: $recipientAddress)
                     .textFieldStyle(.roundedBorder)
                     .font(.body.monospaced())
+            }
+
+            // Smart account toggle
+            if canUseSmartAccount {
+                VStack(spacing: 8) {
+                    Toggle(isOn: $useSmartAccount) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "shield.checkered")
+                                .foregroundStyle(.blue)
+                            Text("Use Smart Account")
+                        }
+                    }
+
+                    if useSmartAccount {
+                        Toggle(isOn: $usePaymaster) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "gift")
+                                    .foregroundStyle(.green)
+                                Text("Gasless (Sponsored)")
+                            }
+                        }
+                    }
+                }
+                .padding()
+                .background(Color.secondary.opacity(0.05))
+                .cornerRadius(12)
             }
 
             if let error = error {
@@ -428,17 +470,31 @@ struct TransferEthscriptionSheet: View {
                 // Get private key (requires biometric auth)
                 let privateKey = try await walletViewModel.getPrivateKey(for: account)
 
-                // Create ethscription service
-                let web3Service = Web3Service()
-                let ethscriptionService = EthscriptionService(web3Service: web3Service)
+                // Use current network
+                let network = NetworkManager.shared.selectedNetwork
+                let web3 = Web3Service()
+                web3.switchNetwork(network)
+                let ethscriptionService = EthscriptionService(web3Service: web3)
 
-                // Perform transfer
-                let hash = try await ethscriptionService.transferEthscription(
-                    ethscriptionId: ethscription.id,
-                    to: recipientAddress,
-                    from: account.address,
-                    privateKey: privateKey
-                )
+                let hash: String
+
+                if useSmartAccount, let smartAccount = smartAccount {
+                    // Transfer via smart account
+                    hash = try await transferViaSmartAccount(
+                        smartAccount: smartAccount,
+                        privateKey: privateKey,
+                        network: network
+                    )
+                    isUserOperation = true
+                } else {
+                    // Perform EOA transfer
+                    hash = try await ethscriptionService.transferEthscription(
+                        ethscriptionId: ethscription.id,
+                        to: recipientAddress,
+                        from: account.address,
+                        privateKey: privateKey
+                    )
+                }
 
                 await MainActor.run {
                     txHash = hash
@@ -450,6 +506,63 @@ struct TransferEthscriptionSheet: View {
                     isTransferring = false
                 }
             }
+        }
+    }
+
+    private func transferViaSmartAccount(
+        smartAccount: SmartAccount,
+        privateKey: Data,
+        network: Network
+    ) async throws -> String {
+        let web3 = Web3Service()
+        web3.switchNetwork(network)
+
+        let bundlerService = BundlerService(chainId: network.id)
+        let smartAccountService = SmartAccountService(
+            web3Service: web3,
+            bundlerService: bundlerService,
+            chainId: network.id
+        )
+
+        // Ethscription transfer: 0 value with ethscription ID as data
+        guard let idData = HexUtils.decode(ethscription.id) else {
+            throw TransferError.invalidEthscriptionId
+        }
+
+        let call = UserOperationCall(
+            to: recipientAddress,
+            value: 0,
+            data: idData
+        )
+
+        // Build UserOperation
+        var userOp = try await smartAccountService.buildUserOperation(
+            account: smartAccount,
+            calls: [call]
+        )
+
+        // Apply paymaster if enabled
+        if usePaymaster {
+            let paymasterService = PaymasterService(chainId: network.id)
+            userOp = try await paymasterService.buildSponsoredUserOperation(
+                from: userOp,
+                mode: .sponsored
+            )
+        }
+
+        // Sign and send
+        userOp = try smartAccountService.signUserOperation(userOp, privateKey: privateKey)
+        return try await bundlerService.sendUserOperation(userOp)
+    }
+}
+
+enum TransferError: Error, LocalizedError {
+    case invalidEthscriptionId
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidEthscriptionId:
+            return "Invalid ethscription ID"
         }
     }
 }

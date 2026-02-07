@@ -135,6 +135,7 @@ struct SponsorshipLimits: Codable {
 // MARK: - Paymaster Data Response
 
 /// Response from paymaster endpoint with sponsorship data
+/// Handles both v0.6 (paymasterAndData) and v0.7 (separate fields) formats
 struct PaymasterDataResponse: Codable {
     let paymasterAndData: Data
     let preVerificationGas: BigUInt?
@@ -144,15 +145,33 @@ struct PaymasterDataResponse: Codable {
     let paymasterPostOpGasLimit: BigUInt?
 
     enum CodingKeys: String, CodingKey {
-        case paymasterAndData, preVerificationGas, verificationGasLimit
+        // v0.6 format
+        case paymasterAndData
+        // v0.7 format (separate fields)
+        case paymaster, paymasterData
+        // Gas fields (both formats)
+        case preVerificationGas, verificationGasLimit
         case callGasLimit, paymasterVerificationGasLimit, paymasterPostOpGasLimit
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
-        let pmDataHex = try container.decode(String.self, forKey: .paymasterAndData)
-        paymasterAndData = Data(hex: pmDataHex)
+        // Try v0.6 format first (paymasterAndData as single field)
+        if let pmDataHex = try container.decodeIfPresent(String.self, forKey: .paymasterAndData) {
+            paymasterAndData = Data(hex: pmDataHex)
+        }
+        // Otherwise try v0.7 format (paymaster + gas limits + paymasterData)
+        else if let paymasterHex = try container.decodeIfPresent(String.self, forKey: .paymaster),
+                let paymasterDataHex = try container.decodeIfPresent(String.self, forKey: .paymasterData) {
+            // For v0.7, we store combined: paymaster (20 bytes) || pmData
+            // The gas limits are sent separately in the RPC but we don't need them in the combined field
+            let paymasterAddr = Data(hex: paymasterHex)
+            let pmData = Data(hex: paymasterDataHex)
+            paymasterAndData = paymasterAddr + pmData
+        } else {
+            paymasterAndData = Data()
+        }
 
         if let preVerHex = try container.decodeIfPresent(String.self, forKey: .preVerificationGas) {
             preVerificationGas = BigUInt(hexString: preVerHex)

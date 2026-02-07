@@ -1,265 +1,53 @@
 import SwiftUI
 
-/// View for sending ETH or ethscriptions
+/// View for sending ETH or tokens via smart account
 struct SendView: View {
     let account: Account?
-    var preselectedToken: Token? = nil
     var smartAccount: SmartAccount? = nil
+    var isSmartAccountEnabled: Bool = false
     @StateObject private var viewModel = SendViewModel()
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var networkManager = NetworkManager.shared
 
     @State private var showingConfirmation = false
-    @State private var showingSuccess = false
 
     var body: some View {
         NavigationStack {
-            Form {
-                // Asset type selector
-                Section {
-                    Picker("Send", selection: $viewModel.selectedAsset) {
-                        ForEach(SendAsset.allCases) { asset in
-                            Text(asset.displayName).tag(asset)
-                        }
+            ScrollView {
+                VStack(spacing: 20) {
+                    // Asset type selector
+                    assetSelector
+
+                    // From section
+                    fromSection
+
+                    // Recipient section
+                    recipientSection
+
+                    // Amount section (for ETH/Token)
+                    if viewModel.selectedAsset != .ethscription {
+                        amountSection
                     }
-                    .pickerStyle(.segmented)
+
+                    // Smart account toggle
+                    if isSmartAccountEnabled && viewModel.canUseSmartAccount {
+                        smartAccountSection
+                    }
+
+                    // Fee section
+                    feeSection
+
+                    // Error display
+                    if let error = viewModel.sendError {
+                        errorSection(error)
+                    }
+
+                    Spacer(minLength: 20)
                 }
-
-                // Recipient address
-                Section("Recipient") {
-                    TextField("Address or ethscription name", text: $viewModel.recipientAddress)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.body.monospaced())
-                        #if os(iOS)
-                        .autocapitalization(.none)
-                        .autocorrectionDisabled()
-                        #endif
-
-                    // Name resolution status
-                    if viewModel.isResolvingName {
-                        HStack(spacing: 8) {
-                            ProgressView()
-                                .controlSize(.small)
-                            Text("Resolving \(viewModel.resolvedName ?? "")...")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    } else if let name = viewModel.resolvedName, let address = viewModel.resolvedAddress {
-                        HStack(spacing: 4) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(name)
-                                    .font(.caption)
-                                    .fontWeight(.medium)
-                                Text(address)
-                                    .font(.caption2.monospaced())
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                            }
-                        }
-                    }
-
-                    if let error = viewModel.recipientError {
-                        Text(error)
-                            .font(.caption)
-                            .foregroundStyle(error.hasPrefix("Warning") ? .orange : .red)
-                    }
-
-                    // Security warnings
-                    if !viewModel.securityWarnings.isEmpty {
-                        SecurityWarningBanner(warnings: viewModel.securityWarnings)
-                    } else if viewModel.isCheckingSecurity {
-                        HStack(spacing: 8) {
-                            ProgressView()
-                                .controlSize(.small)
-                            Text("Checking recipient security...")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-
-                // Token selector (for Token type)
-                if viewModel.selectedAsset == .token {
-                    Section("Token") {
-                        if let token = viewModel.selectedToken,
-                           let balance = viewModel.selectedTokenBalance {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(token.symbol)
-                                        .font(.headline)
-                                    Text(token.name)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                VStack(alignment: .trailing, spacing: 4) {
-                                    Text(balance.formattedBalance)
-                                        .font(.body.monospaced())
-                                    Button("Change") {
-                                        viewModel.selectedToken = nil
-                                        viewModel.selectedTokenBalance = nil
-                                    }
-                                    .buttonStyle(.borderless)
-                                    .font(.caption)
-                                }
-                            }
-                        } else {
-                            NavigationLink {
-                                TokenPickerView(
-                                    address: account?.address ?? "",
-                                    selectedToken: $viewModel.selectedToken,
-                                    selectedBalance: $viewModel.selectedTokenBalance
-                                )
-                            } label: {
-                                Text("Select Token")
-                            }
-                        }
-                    }
-                }
-
-                // Amount (for ETH and Token)
-                if viewModel.selectedAsset == .eth || viewModel.selectedAsset == .token {
-                    Section("Amount") {
-                        HStack {
-                            TextField("0.0", text: $viewModel.amount)
-                                .textFieldStyle(.roundedBorder)
-                                .font(.body.monospaced())
-                                #if os(iOS)
-                                .keyboardType(.decimalPad)
-                                #endif
-
-                            Text(viewModel.selectedAsset == .token ? (viewModel.selectedToken?.symbol ?? "Token") : "ETH")
-                                .foregroundStyle(.secondary)
-
-                            Button("Max") {
-                                viewModel.setMaxAmount()
-                            }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                        }
-
-                        if !viewModel.amount.isEmpty && viewModel.selectedAsset == .eth {
-                            Text(viewModel.amountUSD)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        if let error = viewModel.amountError {
-                            Text(error)
-                                .font(.caption)
-                                .foregroundStyle(.red)
-                        }
-                    }
-                }
-
-                // Ethscription selector
-                if viewModel.selectedAsset == .ethscription {
-                    Section("Ethscription") {
-                        if let ethscription = viewModel.selectedEthscription {
-                            HStack {
-                                EthscriptionRow(ethscription: ethscription)
-                                Spacer()
-                                Button("Change") {
-                                    viewModel.selectedEthscription = nil
-                                }
-                                .buttonStyle(.borderless)
-                            }
-                        } else {
-                            NavigationLink {
-                                EthscriptionPickerView(
-                                    address: account?.address ?? "",
-                                    selectedEthscription: $viewModel.selectedEthscription
-                                )
-                            } label: {
-                                Text("Select Ethscription")
-                            }
-                        }
-                    }
-                }
-
-                // Smart Account toggle
-                if viewModel.canUseSmartAccount {
-                    Section("Transaction Type") {
-                        Toggle(isOn: $viewModel.useSmartAccount) {
-                            HStack {
-                                Image(systemName: "shield.checkered")
-                                Text("Use Smart Account")
-                            }
-                        }
-
-                        if viewModel.useSmartAccount {
-                            Toggle(isOn: $viewModel.usePaymaster) {
-                                HStack {
-                                    Image(systemName: "gift")
-                                    Text("Gasless (Sponsored)")
-                                }
-                            }
-                            .disabled(!viewModel.isPaymasterAvailable)
-
-                            if !viewModel.isPaymasterAvailable {
-                                Text("Paymaster not available. Configure API key in Settings.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                }
-
-                // Gas estimate
-                Section("Transaction Fee") {
-                    if viewModel.useSmartAccount && viewModel.usePaymaster {
-                        HStack {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                            Text("Gas sponsored - Free!")
-                                .fontWeight(.medium)
-                        }
-                    } else if viewModel.isEstimatingGas {
-                        HStack {
-                            ProgressView()
-                                .controlSize(.small)
-                            Text("Estimating...")
-                                .foregroundStyle(.secondary)
-                        }
-                    } else if let estimate = viewModel.gasEstimate {
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Text("Estimated Fee")
-                                Spacer()
-                                Text(estimate.formattedCost)
-                                    .fontWeight(.medium)
-                            }
-
-                            HStack {
-                                Text("Gas Limit")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Spacer()
-                                Text("\(estimate.gasLimit)")
-                                    .font(.caption.monospaced())
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    } else {
-                        Text("Enter valid recipient and amount to estimate")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                // Error display
-                if let error = viewModel.sendError {
-                    Section {
-                        Text(error)
-                            .foregroundStyle(.red)
-                    }
-                }
+                .padding(20)
             }
-            .formStyle(.automatic)
+            .background(Color(nsColor: .windowBackgroundColor))
             .navigationTitle("Send")
-            #if os(macOS)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -271,33 +59,367 @@ struct SendView: View {
                     .disabled(!viewModel.canSend)
                 }
             }
-            #endif
         }
-        .frame(minWidth: 340, minHeight: 420)
+        .frame(minWidth: 380, idealWidth: 400, minHeight: 500)
         .onAppear {
-            if let account = account {
-                viewModel.configure(account: account, balance: 0)
-
-                // Configure smart account if available
-                if let smartAccount = smartAccount {
-                    viewModel.configureSmartAccount(
-                        smartAccount: smartAccount,
-                        web3Service: Web3Service()
-                    )
-                }
-            }
+            configureViewModel()
         }
         .sheet(isPresented: $showingConfirmation) {
             SendConfirmationSheet(viewModel: viewModel) {
-                showingSuccess = true
+                dismiss()
             }
         }
-        .sheet(isPresented: $showingSuccess) {
-            SendSuccessSheet(
-                txHash: viewModel.lastTransactionHash ?? viewModel.userOperationHash ?? "",
-                isUserOperation: viewModel.userOperationHash != nil,
-                onDone: { dismiss() }
-            )
+    }
+
+    // MARK: - Asset Selector
+
+    private var assetSelector: some View {
+        Picker("", selection: $viewModel.selectedAsset) {
+            Text("ETH").tag(SendAsset.eth)
+            Text("Token").tag(SendAsset.token)
+            Text("Ethscription").tag(SendAsset.ethscription)
+        }
+        .pickerStyle(.segmented)
+    }
+
+    // MARK: - From Section
+
+    private var fromSection: some View {
+        SendSection(title: "FROM") {
+            HStack(spacing: 12) {
+                Circle()
+                    .fill(Color.blue.opacity(0.2))
+                    .frame(width: 36, height: 36)
+                    .overlay {
+                        Text(String((account?.label ?? "Account").prefix(1)))
+                            .font(.headline)
+                            .foregroundStyle(.blue)
+                    }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(account?.label ?? "Account")
+                        .font(.headline)
+
+                    if viewModel.useSmartAccount, let sa = viewModel.smartAccount {
+                        Button {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(sa.smartAccountAddress, forType: .string)
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "shield.checkered")
+                                    .font(.caption2)
+                                Text(sa.shortAddress)
+                                    .font(.caption.monospaced())
+                                Image(systemName: "doc.on.doc")
+                                    .font(.caption2)
+                            }
+                            .foregroundStyle(.blue)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Click to copy: \(sa.smartAccountAddress)")
+                    } else {
+                        Text(account?.shortAddress ?? "")
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer()
+
+                VStack(alignment: .trailing, spacing: 4) {
+                    if viewModel.isLoadingBalance {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Text(viewModel.displayBalance)
+                            .font(.headline.monospacedDigit())
+                        Text(networkManager.selectedNetwork.currencySymbol)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .padding(12)
+        }
+    }
+
+    // MARK: - Recipient Section
+
+    private var recipientSection: some View {
+        SendSection(title: "TO") {
+            VStack(spacing: 8) {
+                TextField("Address or ENS name", text: $viewModel.recipientAddress)
+                    .textFieldStyle(.plain)
+                    .font(.system(.body, design: .monospaced))
+                    .padding(12)
+                    .background(Color(nsColor: .textBackgroundColor))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+
+                // Resolution status
+                if viewModel.isResolvingName {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text("Resolving...")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                } else if let name = viewModel.resolvedName, viewModel.resolvedAddress != nil {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                        Text(name)
+                            .font(.caption)
+                        Spacer()
+                    }
+                }
+
+                // Error
+                if let error = viewModel.recipientError {
+                    HStack {
+                        Image(systemName: error.hasPrefix("Warning") ? "exclamationmark.triangle.fill" : "xmark.circle.fill")
+                            .foregroundStyle(error.hasPrefix("Warning") ? .orange : .red)
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(error.hasPrefix("Warning") ? .orange : .red)
+                        Spacer()
+                    }
+                }
+
+                // Security warnings
+                if !viewModel.securityWarnings.isEmpty {
+                    SecurityWarningBanner(warnings: viewModel.securityWarnings)
+                }
+            }
+            .padding(12)
+        }
+    }
+
+    // MARK: - Amount Section
+
+    private var amountSection: some View {
+        SendSection(title: "AMOUNT") {
+            VStack(spacing: 12) {
+                HStack(spacing: 8) {
+                    TextField("0.0", text: $viewModel.amount)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 24, weight: .medium, design: .monospaced))
+                        .padding(12)
+                        .background(Color(nsColor: .textBackgroundColor))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+
+                    VStack(spacing: 4) {
+                        Text(viewModel.selectedAsset == .token ? (viewModel.selectedToken?.symbol ?? "TOKEN") : "ETH")
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
+
+                        Button("MAX") {
+                            viewModel.setMaxAmount()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                }
+
+                // USD value
+                if !viewModel.amount.isEmpty && viewModel.selectedAsset == .eth {
+                    HStack {
+                        Text("≈ \(viewModel.amountUSD)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                }
+
+                // Error
+                if let error = viewModel.amountError {
+                    HStack {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.red)
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                        Spacer()
+                    }
+                }
+            }
+            .padding(12)
+        }
+    }
+
+    // MARK: - Smart Account Section
+
+    private var smartAccountSection: some View {
+        SendSection(title: "SEND FROM") {
+            VStack(spacing: 0) {
+                // EOA option
+                Button {
+                    viewModel.useSmartAccount = false
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: viewModel.useSmartAccount ? "circle" : "checkmark.circle.fill")
+                            .font(.title3)
+                            .foregroundColor(viewModel.useSmartAccount ? .secondary : .blue)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Regular Wallet (EOA)")
+                                .foregroundStyle(.primary)
+                            Text(account?.shortAddress ?? "")
+                                .font(.caption.monospaced())
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
+                    }
+                    .padding(12)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                Divider().padding(.leading, 44)
+
+                // Smart Account option
+                Button {
+                    viewModel.useSmartAccount = true
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: viewModel.useSmartAccount ? "checkmark.circle.fill" : "circle")
+                            .font(.title3)
+                            .foregroundColor(viewModel.useSmartAccount ? .blue : .secondary)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "shield.checkered")
+                                    .font(.caption)
+                                Text("Smart Account")
+                            }
+                            .foregroundStyle(.primary)
+
+                            if let sa = viewModel.smartAccount {
+                                Text(sa.shortAddress)
+                                    .font(.caption.monospaced())
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        Spacer()
+
+                        if let sa = viewModel.smartAccount, !sa.isDeployed {
+                            Text("Not deployed")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                    .padding(12)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                // Gasless option (only when smart account selected)
+                if viewModel.useSmartAccount {
+                    Divider().padding(.leading, 44)
+
+                    Toggle(isOn: $viewModel.usePaymaster) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "gift")
+                                .foregroundStyle(.green)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Gasless (Sponsored)")
+                                Text("Pimlico pays the gas fee")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .disabled(!viewModel.isPaymasterAvailable)
+                    .padding(12)
+                }
+            }
+        }
+    }
+
+    // MARK: - Fee Section
+
+    private var feeSection: some View {
+        SendSection(title: "NETWORK FEE") {
+            HStack {
+                if viewModel.useSmartAccount && viewModel.usePaymaster {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                    Text("Sponsored - Free!")
+                        .fontWeight(.medium)
+                        .foregroundStyle(.green)
+                } else if viewModel.isEstimatingGas {
+                    ProgressView().controlSize(.small)
+                    Text("Estimating...")
+                        .foregroundStyle(.secondary)
+                } else if let estimate = viewModel.gasEstimate {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(estimate.formattedCost)
+                            .font(.headline)
+                        Text("Gas: \(estimate.gasLimit)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    Text("Enter recipient and amount")
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .padding(12)
+        }
+    }
+
+    // MARK: - Error Section
+
+    private func errorSection(_ error: String) -> some View {
+        HStack {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.red)
+            Text(error)
+                .font(.callout)
+            Spacer()
+        }
+        .padding(12)
+        .background(Color.red.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    // MARK: - Configuration
+
+    private func configureViewModel() {
+        guard let account = account else { return }
+        viewModel.configure(account: account, balance: 0)
+
+        if isSmartAccountEnabled, let smartAccount = smartAccount {
+            viewModel.configureSmartAccount(smartAccount: smartAccount)
+            // Auto-enable smart account if available
+            viewModel.useSmartAccount = true
+            viewModel.usePaymaster = true
+        }
+    }
+}
+
+// MARK: - Send Section Component
+
+struct SendSection<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundStyle(.secondary)
+                .padding(.leading, 4)
+
+            VStack(spacing: 0) {
+                content
+            }
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
         }
     }
 }
@@ -307,85 +429,89 @@ struct SendView: View {
 struct SendConfirmationSheet: View {
     @ObservedObject var viewModel: SendViewModel
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var networkManager = NetworkManager.shared
 
     var onSuccess: () -> Void
+
+    @State private var showingSuccess = false
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 24) {
-                // Summary
-                VStack(spacing: 16) {
+                Spacer()
+
+                // Amount display
+                VStack(spacing: 8) {
+                    Text(viewModel.amount.isEmpty ? "0" : viewModel.amount)
+                        .font(.system(size: 48, weight: .semibold, design: .rounded))
+
+                    Text(viewModel.selectedAsset == .token ? (viewModel.selectedToken?.symbol ?? "TOKEN") : networkManager.selectedNetwork.currencySymbol)
+                        .font(.title2)
+                        .foregroundStyle(.secondary)
+
                     if viewModel.selectedAsset == .eth {
-                        Text(viewModel.amount)
-                            .font(.system(size: 48, weight: .medium, design: .monospaced))
-
-                        Text("ETH")
-                            .font(.title2)
-                            .foregroundStyle(.secondary)
-
                         Text(viewModel.amountUSD)
+                            .font(.callout)
                             .foregroundStyle(.secondary)
-                    } else if viewModel.selectedAsset == .token, let token = viewModel.selectedToken {
-                        Text(viewModel.amount)
-                            .font(.system(size: 48, weight: .medium, design: .monospaced))
-
-                        Text(token.symbol)
-                            .font(.title2)
-                            .foregroundStyle(.secondary)
-
-                        Text(token.name)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else if let ethscription = viewModel.selectedEthscription {
-                        EthscriptionRow(ethscription: ethscription)
                     }
                 }
 
                 // Arrow
-                Image(systemName: "arrow.down")
-                    .font(.title2)
+                Image(systemName: "arrow.down.circle.fill")
+                    .font(.system(size: 32))
                     .foregroundStyle(.secondary)
 
                 // Recipient
                 VStack(spacing: 4) {
-                    Text("To")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
                     if let name = viewModel.resolvedName {
                         Text(name)
                             .font(.headline)
                     }
-
                     Text(viewModel.resolvedAddress ?? viewModel.recipientAddress)
-                        .font(.body.monospaced())
+                        .font(.system(.callout, design: .monospaced))
                         .lineLimit(1)
                         .truncationMode(.middle)
-                        .foregroundStyle(viewModel.resolvedName != nil ? .secondary : .primary)
+                        .foregroundStyle(.secondary)
                 }
-                .padding()
+                .padding(16)
+                .frame(maxWidth: .infinity)
                 .background(Color.secondary.opacity(0.1))
-                .cornerRadius(8)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
 
-                // Fee
-                if let estimate = viewModel.gasEstimate {
-                    HStack {
-                        Text("Network Fee")
-                        Spacer()
-                        Text(estimate.formattedCost)
+                // Smart account badge
+                if viewModel.useSmartAccount {
+                    HStack(spacing: 6) {
+                        Image(systemName: "shield.checkered")
+                        Text("Smart Account Transaction")
+                        if viewModel.usePaymaster {
+                            Text("• Gasless")
+                                .foregroundStyle(.green)
+                        }
                     }
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(.caption)
+                    .foregroundStyle(.blue)
                 }
 
                 Spacer()
 
+                // Fee
+                if let estimate = viewModel.gasEstimate, !(viewModel.useSmartAccount && viewModel.usePaymaster) {
+                    HStack {
+                        Text("Network Fee")
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(estimate.formattedCost)
+                    }
+                    .font(.callout)
+                }
+
                 // Buttons
-                HStack(spacing: 8) {
+                HStack(spacing: 12) {
                     Button("Cancel") {
                         dismiss()
                     }
-                    .buttonStyle(.secondary)
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
 
                     Button {
                         send()
@@ -394,17 +520,28 @@ struct SendConfirmationSheet: View {
                             ProgressView()
                                 .controlSize(.small)
                         } else {
-                            Text("Confirm")
+                            Text("Confirm Send")
                         }
                     }
-                    .buttonStyle(.primary)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
                     .disabled(viewModel.isSending)
                 }
             }
-            .padding()
+            .padding(24)
             .navigationTitle("Confirm")
         }
-        .frame(minWidth: 300, minHeight: 360)
+        .frame(minWidth: 340, minHeight: 420)
+        .sheet(isPresented: $showingSuccess) {
+            SendSuccessSheet(
+                txHash: viewModel.lastTransactionHash ?? viewModel.userOperationHash ?? "",
+                isUserOperation: viewModel.userOperationHash != nil,
+                onDone: {
+                    showingSuccess = false
+                    onSuccess()
+                }
+            )
+        }
     }
 
     private func send() {
@@ -412,11 +549,10 @@ struct SendConfirmationSheet: View {
             do {
                 _ = try await viewModel.send()
                 await MainActor.run {
-                    dismiss()
-                    onSuccess()
+                    showingSuccess = true
                 }
             } catch {
-                // Error is displayed in viewModel.sendError
+                // Error displayed in viewModel
             }
         }
     }
@@ -432,366 +568,63 @@ struct SendSuccessSheet: View {
     @StateObject private var networkManager = NetworkManager.shared
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 20) {
+            Spacer()
+
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 40))
+                .font(.system(size: 56))
                 .foregroundStyle(.green)
 
-            Text("Sent")
-                .font(.headline)
+            Text("Sent!")
+                .font(.title)
+                .fontWeight(.semibold)
 
             if isUserOperation {
-                // Smart account transaction
-                VStack(spacing: 8) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "shield.checkered")
-                            .font(.caption)
-                        Text("Smart Account Transaction")
-                            .font(.caption)
-                    }
-                    .foregroundStyle(.blue)
-
-                    VStack(spacing: 4) {
-                        Text("UserOperation Hash")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-
-                        Text(txHash)
-                            .font(.caption2.monospaced())
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                            .textSelection(.enabled)
-                    }
-                    .padding(10)
-                    .background(Color.secondary.opacity(0.08))
-                    .cornerRadius(6)
-
-                    Text("Your transaction is being bundled and will appear on-chain shortly.")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
+                HStack(spacing: 6) {
+                    Image(systemName: "shield.checkered")
+                    Text("Smart Account Transaction")
                 }
-            } else {
-                // Standard transaction
-                VStack(spacing: 4) {
-                    Text("Transaction Hash")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                .font(.callout)
+                .foregroundStyle(.blue)
 
-                    Text(txHash)
-                        .font(.caption2.monospaced())
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .textSelection(.enabled)
-                }
-                .padding(10)
-                .background(Color.secondary.opacity(0.08))
-                .cornerRadius(6)
+                Text("Your transaction is being bundled and will appear on-chain shortly.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
 
-                if let explorerURL = networkManager.selectedNetwork.explorerTransactionURL(txHash) {
-                    Link(destination: explorerURL) {
-                        Label("View on Explorer", systemImage: "arrow.up.right.square")
-                            .font(.caption)
-                    }
+            VStack(spacing: 4) {
+                Text(isUserOperation ? "UserOperation Hash" : "Transaction Hash")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Text(txHash)
+                    .font(.system(.caption, design: .monospaced))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity)
+            .background(Color.secondary.opacity(0.1))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            if !isUserOperation, let url = networkManager.selectedNetwork.explorerTransactionURL(txHash) {
+                Link(destination: url) {
+                    Label("View on Explorer", systemImage: "arrow.up.right.square")
                 }
             }
+
+            Spacer()
 
             Button("Done") {
                 onDone()
             }
-            .buttonStyle(.primary)
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
         }
-        .padding()
-        .frame(minWidth: 280, minHeight: 280)
-    }
-}
-
-// MARK: - Ethscription Picker View
-
-struct EthscriptionPickerView: View {
-    let address: String
-    @Binding var selectedEthscription: Ethscription?
-    @Environment(\.dismiss) private var dismiss
-
-    @State private var ethscriptions: [Ethscription] = []
-    @State private var isLoading = false
-    @State private var error: String?
-
-    var body: some View {
-        Group {
-            if isLoading {
-                VStack(spacing: 16) {
-                    ProgressView()
-                    Text("Loading ethscriptions...")
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let error = error {
-                VStack(spacing: 16) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.system(size: 36))
-                        .foregroundStyle(.orange)
-                    Text(error)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                    Button("Retry") {
-                        Task { await loadEthscriptions() }
-                    }
-                    .buttonStyle(.bordered)
-                }
-                .padding()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if ethscriptions.isEmpty {
-                VStack(spacing: 16) {
-                    Image(systemName: "square.stack.3d.up.slash")
-                        .font(.system(size: 36))
-                        .foregroundStyle(.secondary)
-                    Text("No ethscriptions found")
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                List(ethscriptions) { ethscription in
-                    Button {
-                        selectedEthscription = ethscription
-                        dismiss()
-                    } label: {
-                        EthscriptionRow(ethscription: ethscription)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-        .navigationTitle("Select Ethscription")
-        .task {
-            await loadEthscriptions()
-        }
-    }
-
-    private func loadEthscriptions() async {
-        guard !address.isEmpty else {
-            error = "No account address"
-            return
-        }
-
-        isLoading = true
-        error = nil
-
-        do {
-            let fetched = try await AppChainService.shared.getOwnedEthscriptions(address: address)
-            await MainActor.run {
-                self.ethscriptions = fetched
-                self.isLoading = false
-            }
-        } catch {
-            await MainActor.run {
-                self.error = error.localizedDescription
-                self.isLoading = false
-            }
-        }
-    }
-}
-
-// MARK: - Ethscription Row
-
-struct EthscriptionRow: View {
-    let ethscription: Ethscription
-
-    var body: some View {
-        HStack(spacing: 12) {
-            // Thumbnail placeholder
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.secondary.opacity(0.2))
-                .frame(width: 48, height: 48)
-                .overlay {
-                    if ethscription.isImage {
-                        Image(systemName: "photo")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Image(systemName: "doc.text")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-            VStack(alignment: .leading, spacing: 4) {
-                if let collection = ethscription.collection {
-                    Text(collection.collectionName ?? "Unknown Collection")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text(collection.displayNumber)
-                        .fontWeight(.medium)
-                } else {
-                    Text(ethscription.shortId)
-                        .font(.body.monospaced())
-                }
-
-                Text(ethscription.mimeType)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-        }
-    }
-}
-
-// MARK: - Token Picker View
-
-struct TokenPickerView: View {
-    let address: String
-    @Binding var selectedToken: Token?
-    @Binding var selectedBalance: TokenBalance?
-    @Environment(\.dismiss) private var dismiss
-
-    @State private var balances: [TokenBalance] = []
-    @State private var isLoading = false
-    @State private var error: String?
-    @State private var customTokenAddress = ""
-    @State private var isAddingCustomToken = false
-
-    private let tokenService = TokenService.shared
-    private let networkManager = NetworkManager.shared
-
-    var body: some View {
-        Group {
-            if isLoading {
-                VStack(spacing: 16) {
-                    ProgressView()
-                    Text("Loading tokens...")
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let error = error {
-                VStack(spacing: 16) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.system(size: 36))
-                        .foregroundStyle(.orange)
-                    Text(error)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                    Button("Retry") {
-                        Task { await loadTokens() }
-                    }
-                    .buttonStyle(.bordered)
-                }
-                .padding()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                List {
-                    // Token list
-                    Section("Your Tokens") {
-                        ForEach(balances.filter { $0.hasBalance }) { balance in
-                            Button {
-                                selectedToken = balance.token
-                                selectedBalance = balance
-                                dismiss()
-                            } label: {
-                                tokenRow(balance: balance)
-                            }
-                            .buttonStyle(.plain)
-                        }
-
-                        if balances.filter({ $0.hasBalance }).isEmpty {
-                            Text("No token balances found")
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    // Add custom token
-                    Section("Add Custom Token") {
-                        TextField("Token contract address", text: $customTokenAddress)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.body.monospaced())
-
-                        Button {
-                            Task { await addCustomToken() }
-                        } label: {
-                            if isAddingCustomToken {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Text("Add Token")
-                            }
-                        }
-                        .disabled(customTokenAddress.isEmpty || isAddingCustomToken)
-                    }
-                }
-            }
-        }
-        .navigationTitle("Select Token")
-        .task {
-            await loadTokens()
-        }
-    }
-
-    @ViewBuilder
-    private func tokenRow(balance: TokenBalance) -> some View {
-        HStack(spacing: 12) {
-            // Token icon placeholder
-            Circle()
-                .fill(Color.secondary.opacity(0.2))
-                .frame(width: 40, height: 40)
-                .overlay {
-                    Text(String(balance.token.symbol.prefix(2)))
-                        .font(.caption)
-                        .fontWeight(.bold)
-                }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(balance.token.symbol)
-                    .font(.headline)
-                Text(balance.token.name)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            Text(balance.formattedBalance)
-                .font(.body.monospaced())
-        }
-        .padding(.vertical, 4)
-    }
-
-    private func loadTokens() async {
-        guard !address.isEmpty else {
-            error = "No account address"
-            return
-        }
-
-        isLoading = true
-        error = nil
-
-        let chainId = networkManager.selectedNetwork.id
-        balances = await tokenService.getCommonTokenBalances(for: address, chainId: chainId)
-
-        isLoading = false
-    }
-
-    private func addCustomToken() async {
-        guard HexUtils.isValidAddress(customTokenAddress) else {
-            error = "Invalid token address"
-            return
-        }
-
-        isAddingCustomToken = true
-
-        do {
-            let chainId = networkManager.selectedNetwork.id
-            let token = try await tokenService.getTokenInfo(address: customTokenAddress, chainId: chainId)
-            let balance = try await tokenService.getBalance(of: token, for: address)
-
-            await MainActor.run {
-                balances.append(balance)
-                customTokenAddress = ""
-                isAddingCustomToken = false
-            }
-        } catch {
-            await MainActor.run {
-                self.error = "Failed to add token: \(error.localizedDescription)"
-                isAddingCustomToken = false
-            }
-        }
+        .padding(24)
+        .frame(minWidth: 300, minHeight: 340)
     }
 }
 

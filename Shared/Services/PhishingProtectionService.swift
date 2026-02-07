@@ -107,8 +107,54 @@ final class PhishingProtectionService {
         return warnings
     }
 
+    /// Check if an address is a contract (has code deployed)
+    func isContract(_ address: String, chainId: Int = 1) async -> Bool {
+        let explorerAPI: String
+        switch chainId {
+        case 1:
+            explorerAPI = "https://api.etherscan.io/api"
+        case 8453:
+            explorerAPI = "https://api.basescan.org/api"
+        case 11155111:
+            explorerAPI = "https://api-sepolia.etherscan.io/api"
+        default:
+            print("[PhishingProtection] isContract: unsupported chain \(chainId)")
+            return false // Can't check for unsupported chains
+        }
+
+        guard let url = URL(string: "\(explorerAPI)?module=proxy&action=eth_getCode&address=\(address)&tag=latest") else {
+            print("[PhishingProtection] isContract: invalid URL")
+            return false
+        }
+
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let result = json["result"] as? String else {
+                print("[PhishingProtection] isContract(\(address.prefix(10))): failed to parse JSON")
+                return false
+            }
+            // EOAs return "0x", contracts return actual bytecode starting with "0x"
+            // Etherscan may return error messages like "You are using..." on rate limit
+            let hasCode = result.hasPrefix("0x") && result != "0x" && result.count > 2
+            print("[PhishingProtection] isContract(\(address.prefix(10))): code='\(result.prefix(10))...' hasCode=\(hasCode)")
+            return hasCode
+        } catch {
+            print("[PhishingProtection] isContract(\(address.prefix(10))): error \(error.localizedDescription)")
+            return false
+        }
+    }
+
     /// Check if a contract is verified on Etherscan
     func isContractVerified(_ address: String, chainId: Int = 1) async -> Bool {
+        // First check if it's actually a contract
+        let hasCode = await isContract(address, chainId: chainId)
+        print("[PhishingProtection] isContractVerified(\(address.prefix(10))): hasCode=\(hasCode)")
+        if !hasCode {
+            print("[PhishingProtection] isContractVerified(\(address.prefix(10))): returning true (EOA)")
+            return true // EOAs don't need verification - they're not contracts
+        }
+
         let explorerAPI: String
         switch chainId {
         case 1:

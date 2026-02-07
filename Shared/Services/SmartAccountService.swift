@@ -12,7 +12,7 @@ final class SmartAccountService {
 
     // Contract addresses
     private let factoryAddress = ERC4337Constants.simpleAccountFactory
-    private let entryPointAddress = ERC4337Constants.entryPointV07
+    private let entryPointAddress = ERC4337Constants.entryPoint
 
     // MARK: - Initialization
 
@@ -33,13 +33,6 @@ final class SmartAccountService {
     /// Compute the counterfactual address for a smart account
     /// This address is deterministic and can be computed before deployment
     func computeAddress(owner: String, salt: BigUInt) async throws -> String {
-        // Call factory.getAddress(owner, salt) to get the counterfactual address
-        let calldata = UserOperationEncoder.encodeInitCode(
-            factory: factoryAddress,
-            owner: owner,
-            salt: salt
-        )
-
         // We need to call the factory's getAddress function
         // getAddress(address owner, uint256 salt) selector: 0x8cb84e18
         var getAddressCalldata = Data()
@@ -119,20 +112,24 @@ final class SmartAccountService {
     func buildUserOperation(
         account: SmartAccount,
         call: UserOperationCall,
-        paymaster: Paymaster? = nil
+        skipEstimation: Bool = false
     ) async throws -> UserOperation {
         return try await buildUserOperation(
             account: account,
             calls: [call],
-            paymaster: paymaster
+            skipEstimation: skipEstimation
         )
     }
 
     /// Build a UserOperation for multiple calls (batch)
+    /// - Parameters:
+    ///   - account: The smart account
+    ///   - calls: The calls to execute
+    ///   - skipEstimation: If true, skips gas estimation (use when paymaster will provide gas values)
     func buildUserOperation(
         account: SmartAccount,
         calls: [UserOperationCall],
-        paymaster: Paymaster? = nil
+        skipEstimation: Bool = false
     ) async throws -> UserOperation {
         // Get nonce
         let nonce = try await getNonce(account: account.smartAccountAddress)
@@ -158,7 +155,10 @@ final class SmartAccountService {
             initCode = Data()
         }
 
-        // Build initial UserOp for gas estimation
+        // Get gas prices
+        let gasPrices = try await bundlerService.getGasPrices()
+
+        // Build initial UserOp
         var userOp = UserOperation(
             sender: account.smartAccountAddress,
             nonce: nonce,
@@ -167,33 +167,34 @@ final class SmartAccountService {
             callGasLimit: ERC4337Constants.minCallGasLimit,
             verificationGasLimit: ERC4337Constants.minVerificationGasLimit,
             preVerificationGas: ERC4337Constants.defaultPreVerificationGas,
-            maxFeePerGas: 0,
-            maxPriorityFeePerGas: 0,
+            maxFeePerGas: gasPrices.standard.maxFeePerGas,
+            maxPriorityFeePerGas: gasPrices.standard.maxPriorityFeePerGas,
             paymasterAndData: Data(),
             signature: dummySignature()  // Dummy signature for estimation
         )
 
-        // Get gas prices
-        let gasPrices = try await bundlerService.getGasPrices()
-        userOp.maxFeePerGas = gasPrices.standard.maxFeePerGas
-        userOp.maxPriorityFeePerGas = gasPrices.standard.maxPriorityFeePerGas
+        // Skip estimation if paymaster will provide gas values
+        if !skipEstimation {
+            // Estimate gas
+            let gasEstimate = try await bundlerService.estimateUserOperationGas(userOp)
+            userOp.callGasLimit = gasEstimate.callGasLimit
+            userOp.verificationGasLimit = gasEstimate.verificationGasLimit
+            userOp.preVerificationGas = gasEstimate.preVerificationGas
 
-        // Estimate gas
-        let gasEstimate = try await bundlerService.estimateUserOperationGas(userOp)
-        userOp.callGasLimit = gasEstimate.callGasLimit
-        userOp.verificationGasLimit = gasEstimate.verificationGasLimit
-        userOp.preVerificationGas = gasEstimate.preVerificationGas
-
-        // Update gas prices if returned
-        if gasEstimate.maxFeePerGas > 0 {
-            userOp.maxFeePerGas = gasEstimate.maxFeePerGas
-        }
-        if gasEstimate.maxPriorityFeePerGas > 0 {
-            userOp.maxPriorityFeePerGas = gasEstimate.maxPriorityFeePerGas
+            // Update gas prices if returned
+            if gasEstimate.maxFeePerGas > 0 {
+                userOp.maxFeePerGas = gasEstimate.maxFeePerGas
+            }
+            if gasEstimate.maxPriorityFeePerGas > 0 {
+                userOp.maxPriorityFeePerGas = gasEstimate.maxPriorityFeePerGas
+            }
         }
 
-        // Clear dummy signature
-        userOp.signature = Data()
+        // Clear dummy signature only if we did estimation
+        // Keep dummy signature if skipEstimation=true (paymaster will simulate with it)
+        if !skipEstimation {
+            userOp.signature = Data()
+        }
 
         return userOp
     }
@@ -216,44 +217,87 @@ final class SmartAccountService {
     func execute(
         account: SmartAccount,
         calls: [UserOperationCall],
-        privateKey: Data,
-        paymaster: Paymaster? = nil
+        privateKey: Data
     ) async throws -> String {
-        // Build the UserOperation
+        print("[SmartAccount] === EXECUTE START ===")
+        print("[SmartAccount] account: \(account.smartAccountAddress)")
+        print("[SmartAccount] owner: \(account.ownerAddress)")
+        print("[SmartAccount] isDeployed: \(account.isDeployed)")
+        print("[SmartAccount] calls count: \(calls.count)")
+
+        // Build the UserOperation (with estimation since no paymaster in this flow)
+        print("[SmartAccount] Building UserOperation...")
         var userOp = try await buildUserOperation(
             account: account,
             calls: calls,
-            paymaster: paymaster
+            skipEstimation: false
         )
+        print("[SmartAccount] UserOperation built successfully")
 
         // Sign the UserOperation
+        print("[SmartAccount] Signing UserOperation...")
         userOp = try signUserOperation(userOp, privateKey: privateKey)
+        print("[SmartAccount] UserOperation signed successfully")
 
         // Send to bundler
+        print("[SmartAccount] Sending to bundler...")
         let userOpHash = try await bundlerService.sendUserOperation(userOp)
+        print("[SmartAccount] Sent! Hash: \(userOpHash)")
 
         return userOpHash
     }
 
     /// Sign a UserOperation with the owner's private key
     func signUserOperation(_ userOp: UserOperation, privateKey: Data) throws -> UserOperation {
-        // Compute the hash to sign
-        let hash = userOp.hash(chainId: chainId, entryPoint: entryPointAddress)
+        // Debug: print key info
+        print("[SmartAccount] === SIGNING DEBUG ===")
 
-        // Sign with Ethereum personal sign prefix
+        // Derive address from private key to verify it matches expected owner
+        if let publicKey = SECP256K1.privateToPublic(privateKey: privateKey, compressed: false) {
+            // Skip first byte (0x04 prefix) and take keccak256 of remaining 64 bytes
+            let publicKeyData = publicKey.dropFirst()
+            let addressHash = publicKeyData.sha3(.keccak256)
+            let signerAddress = "0x" + addressHash.suffix(20).map { String(format: "%02x", $0) }.joined()
+            print("[SmartAccount] signer address (from privateKey): \(signerAddress)")
+        }
+
+        print("[SmartAccount] chainId: \(chainId)")
+        print("[SmartAccount] entryPoint: \(entryPointAddress)")
+        print("[SmartAccount] sender: \(userOp.sender)")
+        print("[SmartAccount] nonce: \(userOp.nonce)")
+        print("[SmartAccount] initCode length: \(userOp.initCode.count)")
+        print("[SmartAccount] callData length: \(userOp.callData.count)")
+        print("[SmartAccount] callGasLimit: \(userOp.callGasLimit)")
+        print("[SmartAccount] verificationGasLimit: \(userOp.verificationGasLimit)")
+        print("[SmartAccount] preVerificationGas: \(userOp.preVerificationGas)")
+        print("[SmartAccount] maxFeePerGas: \(userOp.maxFeePerGas)")
+        print("[SmartAccount] maxPriorityFeePerGas: \(userOp.maxPriorityFeePerGas)")
+        print("[SmartAccount] paymasterAndData length: \(userOp.paymasterAndData.count)")
+
+        // Compute the UserOperation hash (this is what EntryPoint.getUserOpHash returns)
+        let userOpHash = userOp.hash(chainId: chainId, entryPoint: entryPointAddress)
+
+        // SimpleAccount v0.7 uses EIP-191 personal sign: toEthSignedMessageHash(userOpHash)
         let prefix = "\u{19}Ethereum Signed Message:\n32"
         guard let prefixData = prefix.data(using: .utf8) else {
             throw SmartAccountError.signatureFailed
         }
+        let messageHash = (prefixData + userOpHash).sha3(.keccak256)
 
-        let dataToSign = (prefixData + hash).sha3(.keccak256)
+        // Debug: print hashes for troubleshooting
+        print("[SmartAccount] userOpHash: 0x\(userOpHash.map { String(format: "%02x", $0) }.joined())")
+        print("[SmartAccount] messageHash (personal sign): 0x\(messageHash.map { String(format: "%02x", $0) }.joined())")
 
-        // Sign using secp256k1
-        let (serializedSignature, _) = SECP256K1.signForRecovery(hash: dataToSign, privateKey: privateKey)
+        let (serializedSignature, _) = SECP256K1.signForRecovery(hash: messageHash, privateKey: privateKey)
 
         guard let signature = serializedSignature else {
             throw SmartAccountError.signatureFailed
         }
+
+        // Print signature components
+        print("[SmartAccount] signature (65 bytes): 0x\(signature.map { String(format: "%02x", $0) }.joined())")
+        print("[SmartAccount] signature v: \(signature[64])")
+        print("[SmartAccount] === END DEBUG ===")
 
         var signedOp = userOp
         signedOp.signature = signature
@@ -330,7 +374,13 @@ final class SmartAccountService {
 
     private func dummySignature() -> Data {
         // 65-byte dummy signature for gas estimation
-        Data(repeating: 0xff, count: 65)
+        // Must be valid ECDSA format or OpenZeppelin's ECDSA.recover will revert
+        // r = 1 (32 bytes), s = 1 (32 bytes), v = 27 (1 byte)
+        var sig = Data(repeating: 0x00, count: 65)
+        sig[31] = 0x01  // r = 1 (last byte of first 32)
+        sig[63] = 0x01  // s = 1 (last byte of second 32)
+        sig[64] = 0x1b  // v = 27
+        return sig
     }
 
     private func encodeERC20Transfer(to: String, amount: BigUInt) -> Data {

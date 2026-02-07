@@ -169,11 +169,17 @@ enum SmartAccountFeature: String, CaseIterable {
 // MARK: - ERC-4337 Constants
 
 struct ERC4337Constants {
+    /// EntryPoint v0.6 address (same on all chains)
+    static let entryPointV06 = "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789"
+
     /// EntryPoint v0.7 address (same on all chains)
     static let entryPointV07 = "0x0000000071727De22E5E9d8BAf0edAc6f37da032"
 
-    /// SimpleAccountFactory address
+    /// SimpleAccountFactory v0.7 address
     static let simpleAccountFactory = "0x91E60e0613810449d098b0b5Ec8b51A0FE8c8985"
+
+    /// Active EntryPoint to use (v0.7 to match the factory)
+    static let entryPoint = entryPointV07
 
     /// Default salt for first smart account
     static let defaultSalt: BigUInt = 0

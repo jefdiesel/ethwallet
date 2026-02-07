@@ -7,6 +7,13 @@ import BigInt
 final class SmartAccountViewModel: ObservableObject {
     // MARK: - Published State
 
+    /// Global toggle to enable/disable smart account features
+    @Published var isSmartAccountEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(isSmartAccountEnabled, forKey: "smartAccountEnabled")
+        }
+    }
+
     @Published private(set) var smartAccounts: [SmartAccount] = []
     @Published private(set) var isLoading: Bool = false
     @Published private(set) var error: SmartAccountViewError?
@@ -49,6 +56,9 @@ final class SmartAccountViewModel: ObservableObject {
         self.web3Service = web3Service
         self.keychainService = keychainService
         self.priceService = priceService
+
+        // Load enabled state (defaults to false)
+        self.isSmartAccountEnabled = UserDefaults.standard.bool(forKey: "smartAccountEnabled")
 
         setupServices()
         loadStoredSmartAccounts()
@@ -443,6 +453,9 @@ extension SmartAccountViewModel {
 
         // Reinitialize services
         setupServices()
+
+        // Force UI update by triggering objectWillChange
+        objectWillChange.send()
     }
 
     /// Check if Pimlico API key is set

@@ -110,7 +110,7 @@ struct UserOperation: Codable {
     /// Compute the UserOperation hash for signing (ERC-4337 v0.7 format)
     /// This is the hash that gets signed by the owner's private key
     func hash(chainId: Int, entryPoint: String) -> Data {
-        // Pack the UserOperation fields
+        // Pack the UserOperation fields (v0.7 format)
         let packed = packForHash()
 
         // Keccak256 of packed UserOp
@@ -146,14 +146,14 @@ struct UserOperation: Codable {
         // hashCallData = keccak256(callData)
         data.append(callData.sha3(.keccak256))
 
-        // accountGasLimits (bytes32) = verificationGasLimit || callGasLimit
-        data.append(packGasLimits(verificationGasLimit, callGasLimit))
+        // accountGasLimits (bytes32) = verificationGasLimit (high 128 bits) || callGasLimit (low 128 bits)
+        data.append(packUint128Pair(verificationGasLimit, callGasLimit))
 
         // preVerificationGas (uint256)
         data.append(padUInt256(preVerificationGas))
 
-        // gasFees (bytes32) = maxPriorityFeePerGas || maxFeePerGas
-        data.append(packGasFees(maxPriorityFeePerGas, maxFeePerGas))
+        // gasFees (bytes32) = maxPriorityFeePerGas (high 128 bits) || maxFeePerGas (low 128 bits)
+        data.append(packUint128Pair(maxPriorityFeePerGas, maxFeePerGas))
 
         // hashPaymasterAndData = keccak256(paymasterAndData)
         data.append(paymasterAndData.sha3(.keccak256))
@@ -161,23 +161,66 @@ struct UserOperation: Codable {
         return data
     }
 
+    /// Pack two uint128 values into a bytes32
+    private func packUint128Pair(_ high: BigUInt, _ low: BigUInt) -> Data {
+        let highHex = String(high, radix: 16)
+        let lowHex = String(low, radix: 16)
+        let highPadded = String(repeating: "0", count: 32 - highHex.count) + highHex
+        let lowPadded = String(repeating: "0", count: 32 - lowHex.count) + lowHex
+        return Data(hex: highPadded + lowPadded)
+    }
+
     // MARK: - JSON-RPC Encoding
 
-    /// Convert to dictionary for bundler JSON-RPC calls
-    func toRPCDict() -> [String: String] {
-        return [
+    /// Convert to dictionary for bundler JSON-RPC calls (EntryPoint v0.7 format)
+    func toRPCDict() -> [String: Any] {
+        var dict: [String: Any] = [
             "sender": sender,
             "nonce": nonce.hexString,
-            "initCode": initCode.hexString,
             "callData": callData.hexString,
             "callGasLimit": callGasLimit.hexString,
             "verificationGasLimit": verificationGasLimit.hexString,
             "preVerificationGas": preVerificationGas.hexString,
             "maxFeePerGas": maxFeePerGas.hexString,
             "maxPriorityFeePerGas": maxPriorityFeePerGas.hexString,
-            "paymasterAndData": paymasterAndData.hexString,
             "signature": signature.hexString
         ]
+
+        // v0.7: Split initCode into factory + factoryData
+        if initCode.isEmpty {
+            dict["factory"] = NSNull()
+            dict["factoryData"] = NSNull()
+        } else if initCode.count >= 20 {
+            let factoryAddress = "0x" + initCode.prefix(20).map { String(format: "%02x", $0) }.joined()
+            let factoryData = "0x" + initCode.dropFirst(20).map { String(format: "%02x", $0) }.joined()
+            dict["factory"] = factoryAddress
+            dict["factoryData"] = factoryData
+        } else {
+            dict["factory"] = NSNull()
+            dict["factoryData"] = NSNull()
+        }
+
+        // v0.7: Split paymasterAndData into separate fields
+        if paymasterAndData.isEmpty {
+            dict["paymaster"] = NSNull()
+            dict["paymasterVerificationGasLimit"] = NSNull()
+            dict["paymasterPostOpGasLimit"] = NSNull()
+            dict["paymasterData"] = NSNull()
+        } else if paymasterAndData.count >= 20 {
+            let paymasterAddress = "0x" + paymasterAndData.prefix(20).map { String(format: "%02x", $0) }.joined()
+            let paymasterData = "0x" + paymasterAndData.dropFirst(20).map { String(format: "%02x", $0) }.joined()
+            dict["paymaster"] = paymasterAddress
+            dict["paymasterVerificationGasLimit"] = "0x30d40"  // 200000 default
+            dict["paymasterPostOpGasLimit"] = "0x0"
+            dict["paymasterData"] = paymasterData
+        } else {
+            dict["paymaster"] = NSNull()
+            dict["paymasterVerificationGasLimit"] = NSNull()
+            dict["paymasterPostOpGasLimit"] = NSNull()
+            dict["paymasterData"] = NSNull()
+        }
+
+        return dict
     }
 
     // MARK: - Helpers
@@ -195,24 +238,6 @@ struct UserOperation: Codable {
         let hex = String(value, radix: 16)
         let padded = String(repeating: "0", count: 64 - hex.count) + hex
         return Data(hex: padded)
-    }
-
-    private func packGasLimits(_ verification: BigUInt, _ call: BigUInt) -> Data {
-        // Pack two uint128 values into bytes32: verification (high 128 bits) || call (low 128 bits)
-        let verHex = String(verification, radix: 16)
-        let callHex = String(call, radix: 16)
-        let verPadded = String(repeating: "0", count: 32 - verHex.count) + verHex
-        let callPadded = String(repeating: "0", count: 32 - callHex.count) + callHex
-        return Data(hex: verPadded + callPadded)
-    }
-
-    private func packGasFees(_ priority: BigUInt, _ max: BigUInt) -> Data {
-        // Pack two uint128 values into bytes32: priority (high 128 bits) || max (low 128 bits)
-        let priorityHex = String(priority, radix: 16)
-        let maxHex = String(max, radix: 16)
-        let priorityPadded = String(repeating: "0", count: 32 - priorityHex.count) + priorityHex
-        let maxPadded = String(repeating: "0", count: 32 - maxHex.count) + maxHex
-        return Data(hex: priorityPadded + maxPadded)
     }
 
     // MARK: - Computed Properties
