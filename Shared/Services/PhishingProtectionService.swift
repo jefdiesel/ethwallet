@@ -32,8 +32,7 @@ final class PhishingProtectionService {
         "looksrare.org",
         "blur.io",
         "etherscan.io",
-        "basescan.org",
-        "chainhost.online"
+        "basescan.org"
     ]
 
     /// Homoglyph characters that look like ASCII letters

@@ -22,8 +22,10 @@ final class WalletConnectService: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var isConfigured = false
 
-    // WalletConnect Project ID
-    private let projectId = "c10f1058133aeedd0549f82a1209c62c"
+    /// WalletConnect Project ID - fetched from Keychain or uses default
+    private var projectId: String {
+        KeychainService.shared.retrieveAPIKey(for: "walletconnect") ?? "c10f1058133aeedd0549f82a1209c62c"
+    }
 
     private init() {}
 

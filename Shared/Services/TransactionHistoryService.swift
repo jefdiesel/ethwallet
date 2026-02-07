@@ -100,7 +100,7 @@ final class TransactionHistoryService {
             throw TransactionHistoryError.invalidURL
         }
 
-        let (data, _) = try await URLSession.shared.data(from: url)
+        let (data, _) = try await URLSession.shared.rateLimitedData(from: url)
 
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               let result = json["result"] as? [String: Any] else {
@@ -124,7 +124,7 @@ final class TransactionHistoryService {
             throw TransactionHistoryError.invalidURL
         }
 
-        let (data, _) = try await URLSession.shared.data(from: url)
+        let (data, _) = try await URLSession.shared.rateLimitedData(from: url)
 
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               let result = json["result"] as? [[String: Any]] else {
@@ -146,7 +146,7 @@ final class TransactionHistoryService {
             throw TransactionHistoryError.invalidURL
         }
 
-        let (data, _) = try await URLSession.shared.data(from: url)
+        let (data, _) = try await URLSession.shared.rateLimitedData(from: url)
 
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               let result = json["result"] as? [[String: Any]] else {
@@ -168,7 +168,7 @@ final class TransactionHistoryService {
             throw TransactionHistoryError.invalidURL
         }
 
-        let (data, _) = try await URLSession.shared.data(from: url)
+        let (data, _) = try await URLSession.shared.rateLimitedData(from: url)
 
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               let result = json["result"] as? [[String: Any]] else {

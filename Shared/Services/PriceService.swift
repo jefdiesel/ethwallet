@@ -97,7 +97,7 @@ final class PriceService: ObservableObject {
     private func fetchFromCoinGecko() async throws -> Double {
         let url = URL(string: "https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd")!
 
-        let (data, response) = try await URLSession.shared.data(from: url)
+        let (data, response) = try await URLSession.shared.rateLimitedData(from: url)
 
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {
@@ -119,7 +119,7 @@ final class PriceService: ObservableObject {
     func fetchPriceHistory(days: Int = 7) async throws -> [PricePoint] {
         let url = URL(string: "https://api.coingecko.com/api/v3/coins/ethereum/market_chart?vs_currency=usd&days=\(days)")!
 
-        let (data, response) = try await URLSession.shared.data(from: url)
+        let (data, response) = try await URLSession.shared.rateLimitedData(from: url)
 
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {

@@ -70,7 +70,7 @@ class BrowserViewModel: ObservableObject {
         if let url = url {
             webView.load(URLRequest(url: url))
         } else {
-            webView.load(URLRequest(url: URL(string: "https://chainhost.online")!))
+            webView.load(URLRequest(url: URL(string: "https://app.uniswap.org")!))
         }
 
         // Set connected address if available
@@ -129,7 +129,7 @@ class BrowserViewModel: ObservableObject {
         }
     }
 
-    func goHome() { navigate(to: "https://chainhost.online") }
+    func goHome() { navigate(to: "https://app.uniswap.org") }
 
     func setAccount(_ address: String) {
         connectedAddress = address
@@ -424,6 +424,14 @@ class TabCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMess
     // MARK: - WKScriptMessageHandler
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        // Origin validation: ensure message comes from a trusted context
+        guard validateMessageOrigin(message) else {
+            #if DEBUG
+            print("[Browser] Rejected message from untrusted origin: \(message.frameInfo.request.url?.host ?? "unknown")")
+            #endif
+            return
+        }
+
         if message.name == "pixelArt" {
             guard let body = message.body as? [String: Any],
                   let url = body["url"] as? String,
@@ -442,6 +450,59 @@ class TabCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMess
         Task { @MainActor in
             await handleWeb3Request(id: id, method: method, params: params)
         }
+    }
+
+    /// Validates that a script message comes from a trusted origin
+    /// - Returns: true if the message should be processed, false if it should be rejected
+    private func validateMessageOrigin(_ message: WKScriptMessage) -> Bool {
+        // Get the origin of the message
+        guard let messageURL = message.frameInfo.request.url,
+              let messageHost = messageURL.host?.lowercased() else {
+            // Allow messages without URL (initial page load edge cases)
+            return message.frameInfo.isMainFrame
+        }
+
+        // Get the current tab's URL for comparison
+        guard let tabURL = tab?.webView.url,
+              let tabHost = tabURL.host?.lowercased() else {
+            // If tab has no URL yet, only allow main frame messages
+            return message.frameInfo.isMainFrame
+        }
+
+        // For main frame: always allow (it's the page the user navigated to)
+        if message.frameInfo.isMainFrame {
+            return true
+        }
+
+        // For iframes: validate origin matches the main frame's origin
+        // This prevents cross-origin iframes from hijacking wallet interactions
+        let messageOrigin = extractOrigin(from: messageHost)
+        let tabOrigin = extractOrigin(from: tabHost)
+
+        if messageOrigin == tabOrigin {
+            return true
+        }
+
+        // Block cross-origin iframe messages for security-sensitive handlers
+        if message.name == "ethWallet" {
+            #if DEBUG
+            print("[Browser] Blocking cross-origin ethWallet message: iframe=\(messageHost), main=\(tabHost)")
+            #endif
+            return false
+        }
+
+        // Allow pixelArt messages from any origin (non-sensitive)
+        return message.name == "pixelArt"
+    }
+
+    /// Extracts the registrable domain from a host (e.g., "app.example.com" -> "example.com")
+    private func extractOrigin(from host: String) -> String {
+        let parts = host.split(separator: ".")
+        if parts.count >= 2 {
+            // Return last two parts (e.g., "example.com")
+            return parts.suffix(2).joined(separator: ".")
+        }
+        return host
     }
 
     /// Fetch SVG from URL (no CORS), extract raster, send back to JS
