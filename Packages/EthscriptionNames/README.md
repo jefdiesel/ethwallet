@@ -58,26 +58,36 @@ let tx = try EthscriptionNameTransaction.claim("myname", from: myAddress)
 3. **First-come-first-serve**: Only the first valid inscription counts
 4. **Transferable**: Names can be transferred like any ethscription
 
-### Case Sensitivity & URL Compatibility
+### Protocol vs Library
 
-Ethscription names are **case-insensitive** and **URL-safe by design**.
+**The protocol** allows any valid UTF-8 content - including uppercase, Chinese (你好), emoji, accented characters, etc. Each produces a unique SHA-256 hash:
 
-While the protocol technically allows inscribing `Name`, `NAME`, or `NaMe` as separate ethscriptions (they produce different SHA-256 hashes), this library normalizes all names to **lowercase** for consistency:
-
-```swift
-try EthscriptionName("Alice")   // → "alice"
-try EthscriptionName("ALICE")   // → "alice"
-try EthscriptionName("aLiCe")   // → "alice"
+```
+data:,alice → 16b178b22a79...
+data:,Alice → d28ade029924...  (different hash!)
+data:,你好   → 0ecd4d699c99...  (valid on-chain)
 ```
 
-**Why lowercase?**
+**This library** is more restrictive for URL compatibility:
 
-- **URL compatibility**: Names can be used in URLs like `https://app.example.com/alice.eths` without encoding issues
-- **User experience**: Users don't need to remember exact casing
-- **Collision prevention**: `Alice` and `alice` resolve to the same owner
-- **Convention**: Follows DNS and ENS precedent where domains are case-insensitive
+1. **Defaults to lowercase**: Input is normalized before hashing
+   ```swift
+   try EthscriptionName("Alice")  // → looks up "alice"
+   try EthscriptionName("ALICE")  // → looks up "alice"
+   ```
 
-**Important**: If you inscribe `data:,Alice` on-chain, this library will NOT find it when searching for "alice" because the SHA-256 hashes differ. Always inscribe lowercase names for maximum compatibility.
+2. **ASCII-only**: Only allows `a-z`, `0-9`, `.`, `-`, `_`
+   ```swift
+   try EthscriptionName("café")   // throws - accented char
+   try EthscriptionName("你好")    // throws - non-ASCII
+   ```
+
+**Consequence**: If someone inscribes `data:,Alice` or `data:,你好` on-chain, this library cannot find or create those names. It only works with lowercase ASCII names.
+
+**Why these restrictions?**
+- URL-safe without encoding (e.g., `https://app.example.com/alice.eths`)
+- Follows DNS/ENS conventions
+- Predictable lookups - no case confusion
 
 ### SHA-256 Fingerprinting
 
