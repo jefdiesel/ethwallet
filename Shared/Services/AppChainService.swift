@@ -125,57 +125,58 @@ final class AppChainService {
 
     // MARK: - Ethscription Queries
 
-    /// Get ethscriptions owned by an address via AppChain RPC
+    /// Get ethscriptions owned by an address via API
     func getOwnedEthscriptions(
         address: String,
         offset: Int = 0,
         limit: Int = 50
     ) async throws -> [Ethscription] {
-        // Use AppChain's native RPC method for querying owned ethscriptions
-        let result = try await appChainRPC(
-            method: "ethscriptions_getEthscriptionsByOwner",
-            params: [address.lowercased(), offset, limit]
-        )
-
-        guard let items = result as? [[String: Any]] else {
-            // Fallback: empty result if method not available
-            print("[AppChain] ethscriptions_getEthscriptionsByOwner returned unexpected format")
-            return []
+        // Use the ethscriptions.com API to fetch owned ethscriptions
+        guard var urlComponents = URLComponents(string: "https://api.ethscriptions.com/v2/ethscriptions") else {
+            throw AppChainError.invalidResponse
         }
 
-        return items.compactMap { item -> Ethscription? in
-            guard let txHash = item["transaction_hash"] as? String ?? item["transactionHash"] as? String,
-                  let owner = item["current_owner"] as? String ?? item["currentOwner"] as? String else {
-                return nil
-            }
+        urlComponents.queryItems = [
+            URLQueryItem(name: "current_owner", value: address.lowercased()),
+            URLQueryItem(name: "per_page", value: String(limit)),
+            URLQueryItem(name: "page", value: String(offset / limit + 1))
+        ]
 
+        guard let url = urlComponents.url else {
+            throw AppChainError.invalidResponse
+        }
+
+        var request = URLRequest(url: url)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            throw AppChainError.httpError
+        }
+
+        // Parse the API response
+        let apiResponse = try JSONDecoder().decode(EthscriptionsAPIResponse.self, from: data)
+
+        return apiResponse.result.map { item in
             let timestamp: Date
-            if let ts = item["block_timestamp"] as? String ?? item["blockTimestamp"] as? String,
-               let unixTime = Double(ts) {
-                timestamp = Date(timeIntervalSince1970: unixTime)
-            } else if let unixTime = item["block_timestamp"] as? Double ?? item["blockTimestamp"] as? Double {
+            if let ts = item.block_timestamp, let unixTime = Double(ts) {
                 timestamp = Date(timeIntervalSince1970: unixTime)
             } else {
                 timestamp = Date()
             }
 
-            let blockNum: Int
-            if let blockStr = item["block_number"] as? String ?? item["blockNumber"] as? String {
-                blockNum = Int(blockStr) ?? 0
-            } else if let blockInt = item["block_number"] as? Int ?? item["blockNumber"] as? Int {
-                blockNum = blockInt
-            } else {
-                blockNum = 0
-            }
+            let blockNum = item.block_number.flatMap { Int($0) } ?? 0
 
             return Ethscription(
-                id: txHash,
-                creator: item["creator"] as? String ?? "",
-                owner: owner,
-                contentHash: item["content_sha"] as? String ?? item["contentSha"] as? String ?? "",
-                mimeType: item["mimetype"] as? String ?? item["mimeType"] as? String ?? "application/octet-stream",
-                contentURI: item["content_uri"] as? String ?? item["contentUri"] as? String,
-                contentSize: (item["content_uri"] as? String ?? item["contentUri"] as? String)?.count ?? 0,
+                id: item.transaction_hash,
+                creator: item.creator ?? "",
+                owner: item.current_owner,
+                contentHash: item.content_sha ?? "",
+                mimeType: item.mimetype ?? "application/octet-stream",
+                contentURI: item.content_uri,
+                contentSize: item.content_uri?.count ?? 0,
                 blockNumber: blockNum,
                 createdAt: timestamp,
                 collection: nil,
@@ -184,22 +185,32 @@ final class AppChainService {
         }
     }
 
-    /// Check if an ethscription exists by its content hash via AppChain RPC
+    /// Check if an ethscription exists by its content hash via API
     func ethscriptionExists(contentHash: String) async throws -> EthscriptionExistsResult? {
-        let result = try await appChainRPC(
-            method: "ethscriptions_exists",
-            params: [contentHash]
-        )
+        guard let url = URL(string: "https://api.ethscriptions.com/v2/ethscriptions/exists/\(contentHash)") else {
+            throw AppChainError.invalidResponse
+        }
 
-        guard let dict = result as? [String: Any] else {
+        var request = URLRequest(url: url)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            throw AppChainError.httpError
+        }
+
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let result = json["result"] as? [String: Any] else {
             return nil
         }
 
-        let exists = dict["exists"] as? Bool ?? false
+        let exists = result["exists"] as? Bool ?? false
         guard exists,
-              let ethscription = dict["ethscription"] as? [String: Any],
-              let txHash = ethscription["transaction_hash"] as? String ?? ethscription["transactionHash"] as? String,
-              let owner = ethscription["current_owner"] as? String ?? ethscription["currentOwner"] as? String else {
+              let ethscription = result["ethscription"] as? [String: Any],
+              let txHash = ethscription["transaction_hash"] as? String,
+              let owner = ethscription["current_owner"] as? String else {
             return EthscriptionExistsResult(exists: false, transactionHash: nil, currentOwner: nil)
         }
 
@@ -340,7 +351,22 @@ enum AppChainError: Error, LocalizedError {
     }
 }
 
-// MARK: - RPC Response Types
+// MARK: - API Response Types
+
+struct EthscriptionsAPIResponse: Codable {
+    let result: [EthscriptionAPIItem]
+}
+
+struct EthscriptionAPIItem: Codable {
+    let transaction_hash: String
+    let current_owner: String
+    let creator: String?
+    let block_timestamp: String?
+    let content_uri: String?
+    let mimetype: String?
+    let content_sha: String?
+    let block_number: String?
+}
 
 struct EthscriptionExistsResult {
     let exists: Bool
