@@ -326,23 +326,30 @@ struct WalletView: View {
         VStack(spacing: 0) {
             // Header with back button
             HStack {
-                Button { withAnimation(.easeInOut(duration: 0.15)) {
+                Button {
                     showingSendInline = false
                     sendRecipient = ""
                     sendAmount = ""
                     sendError = nil
                     sendSuccess = nil
-                } } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.caption)
+                } label: {
+                    Label("Back", systemImage: "chevron.left")
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PrimaryButtonStyle())
+
+                Spacer()
+
                 Text("Send")
                     .font(.caption.bold())
+
                 Spacer()
+
+                // Invisible spacer to center title
+                Label("Back", systemImage: "chevron.left")
+                    .opacity(0)
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 4)
+            .padding(.vertical, 8)
 
             Divider()
 
@@ -525,17 +532,26 @@ struct WalletView: View {
         VStack(spacing: 0) {
             // Header with back button
             HStack {
-                Button { withAnimation(.easeInOut(duration: 0.15)) { showingReceive = false } } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.caption)
+                Button {
+                    showingReceive = false
+                } label: {
+                    Label("Back", systemImage: "chevron.left")
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PrimaryButtonStyle())
+
+                Spacer()
+
                 Text("Receive")
                     .font(.caption.bold())
+
                 Spacer()
+
+                // Invisible spacer to center title
+                Label("Back", systemImage: "chevron.left")
+                    .opacity(0)
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 4)
+            .padding(.vertical, 8)
 
             Divider()
 
