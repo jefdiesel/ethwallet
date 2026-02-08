@@ -140,6 +140,10 @@ struct WalletView: View {
             Text("Add a free Alchemy API key for reliable network access. Without it, you may experience slow or failed requests.")
         }
         .onAppear {
+            #if os(macOS)
+            // Configure browser manager so OpenSea links work from NFTsView
+            BrowserWindowManager.shared.configure(walletViewModel: viewModel)
+            #endif
             checkAlchemyKey()
         }
     }
