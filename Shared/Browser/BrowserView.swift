@@ -70,7 +70,7 @@ class BrowserViewModel: ObservableObject {
         if let url = url {
             webView.load(URLRequest(url: url))
         } else {
-            webView.load(URLRequest(url: URL(string: "https://app.uniswap.org")!))
+            webView.load(URLRequest(url: URL(string: "https://chainhost.online")!))
         }
 
         // Set connected address if available
@@ -129,7 +129,7 @@ class BrowserViewModel: ObservableObject {
         }
     }
 
-    func goHome() { navigate(to: "https://app.uniswap.org") }
+    func goHome() { navigate(to: "https://chainhost.online") }
 
     func setAccount(_ address: String) {
         connectedAddress = address
