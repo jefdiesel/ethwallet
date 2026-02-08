@@ -334,8 +334,9 @@ struct WalletView: View {
                     sendSuccess = nil
                 } label: {
                     Label("Back", systemImage: "chevron.left")
+                        .font(.caption.weight(.semibold))
                 }
-                .buttonStyle(PrimaryButtonStyle())
+                .buttonStyle(AccentButtonStyle())
 
                 Spacer()
 
@@ -346,6 +347,7 @@ struct WalletView: View {
 
                 // Invisible spacer to center title
                 Label("Back", systemImage: "chevron.left")
+                    .font(.caption.weight(.semibold))
                     .opacity(0)
             }
             .padding(.horizontal, 10)
@@ -536,8 +538,9 @@ struct WalletView: View {
                     showingReceive = false
                 } label: {
                     Label("Back", systemImage: "chevron.left")
+                        .font(.caption.weight(.semibold))
                 }
-                .buttonStyle(PrimaryButtonStyle())
+                .buttonStyle(AccentButtonStyle())
 
                 Spacer()
 
@@ -548,6 +551,7 @@ struct WalletView: View {
 
                 // Invisible spacer to center title
                 Label("Back", systemImage: "chevron.left")
+                    .font(.caption.weight(.semibold))
                     .opacity(0)
             }
             .padding(.horizontal, 10)
