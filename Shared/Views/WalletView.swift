@@ -22,7 +22,10 @@ class BrowserWindowManager {
     private var browserViewModel: BrowserViewModel?
 
     func openBrowser(url: URL? = nil) {
-        guard let walletVM = walletViewModel else { return }
+        guard let walletVM = walletViewModel else {
+            print("[BrowserWindowManager] No walletViewModel configured")
+            return
+        }
 
         if let window = browserWindow, window.isVisible {
             window.makeKeyAndOrderFront(nil)
@@ -42,9 +45,12 @@ class BrowserWindowManager {
         window.title = "Web Browser"
         window.center()
 
-        // Create BrowserViewModel so we can navigate programmatically
+        // Create BrowserViewModel and pre-create initial tab with URL
         let browserVM = BrowserViewModel()
         self.browserViewModel = browserVM
+
+        // Create initial tab with the URL (so it loads immediately)
+        _ = browserVM.createTab(url: url, switchTo: true)
 
         let contentView = HStack(spacing: 0) {
             BrowserView(viewModel: browserVM)
@@ -61,11 +67,6 @@ class BrowserWindowManager {
         window.contentView = NSHostingView(rootView: contentView)
         window.makeKeyAndOrderFront(nil)
         browserWindow = window
-
-        // Navigate to URL after window is open
-        if let url = url {
-            browserVM.navigate(to: url.absoluteString)
-        }
     }
 
     func openURL(_ url: URL) {
