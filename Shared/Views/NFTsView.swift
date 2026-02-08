@@ -74,17 +74,27 @@ struct NFTsView: View {
         VStack(spacing: 0) {
             // Header with back button
             HStack {
-                Button { withAnimation(.easeInOut(duration: 0.15)) { selectedNFT = nil } } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.caption)
+                Button {
+                    selectedNFT = nil
+                } label: {
+                    Label("Back", systemImage: "chevron.left")
+                        .font(.caption.weight(.semibold))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AccentButtonStyle())
+
+                Spacer()
+
                 Text(nft.collectionName ?? "NFT")
                     .font(.caption.bold())
+
                 Spacer()
+
+                Label("Back", systemImage: "chevron.left")
+                    .font(.caption.weight(.semibold))
+                    .opacity(0)
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 4)
+            .padding(.vertical, 8)
 
             Divider()
 

@@ -127,17 +127,28 @@ struct TokensView: View {
         VStack(spacing: 0) {
             // Header with back button
             HStack {
-                Button { withAnimation(.easeInOut(duration: 0.15)) { selectedToken = nil } } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.caption)
+                Button {
+                    selectedToken = nil
+                } label: {
+                    Label("Back", systemImage: "chevron.left")
+                        .font(.caption.weight(.semibold))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AccentButtonStyle())
+
+                Spacer()
+
                 Text(token.token.symbol)
                     .font(.caption.bold())
+
                 Spacer()
+
+                // Invisible spacer to center title
+                Label("Back", systemImage: "chevron.left")
+                    .font(.caption.weight(.semibold))
+                    .opacity(0)
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 4)
+            .padding(.vertical, 8)
 
             Divider()
 
@@ -256,23 +267,31 @@ struct TokensView: View {
         VStack(spacing: 0) {
             // Header with back button
             HStack {
-                Button { withAnimation(.easeInOut(duration: 0.15)) {
+                Button {
                     showingSendToken = false
                     tokenSendRecipient = ""
                     tokenSendAmount = ""
                     tokenSendError = nil
                     tokenSendSuccess = nil
-                } } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.caption)
+                } label: {
+                    Label("Back", systemImage: "chevron.left")
+                        .font(.caption.weight(.semibold))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AccentButtonStyle())
+
+                Spacer()
+
                 Text("Send \(token.token.symbol)")
                     .font(.caption.bold())
+
                 Spacer()
+
+                Label("Back", systemImage: "chevron.left")
+                    .font(.caption.weight(.semibold))
+                    .opacity(0)
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 4)
+            .padding(.vertical, 8)
 
             Divider()
 
@@ -459,14 +478,24 @@ struct TokensView: View {
         VStack(spacing: 0) {
             // Header with back button
             HStack {
-                Button { withAnimation(.easeInOut(duration: 0.15)) { showingReceiveToken = false } } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.caption)
+                Button {
+                    showingReceiveToken = false
+                } label: {
+                    Label("Back", systemImage: "chevron.left")
+                        .font(.caption.weight(.semibold))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AccentButtonStyle())
+
+                Spacer()
+
                 Text("Receive")
                     .font(.caption.bold())
+
                 Spacer()
+
+                Label("Back", systemImage: "chevron.left")
+                    .font(.caption.weight(.semibold))
+                    .opacity(0)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 4)
